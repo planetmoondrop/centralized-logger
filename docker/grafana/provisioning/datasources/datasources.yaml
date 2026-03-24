@@ -1,0 +1,39 @@
+apiVersion: 1
+
+datasources:
+  # ── Loki — primary log store ────────────────────────────────────────
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    isDefault: true
+    jsonData:
+      maxLines: 1000
+      # Link traceId values in log lines to Tempo traces
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"traceId":"([^"]+)"'
+          url: '$${__value.raw}'
+          datasourceUid: tempo
+          urlDisplayLabel: "View trace in Tempo"
+
+  # ── Tempo — distributed trace store ────────────────────────────────
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      httpMethod: GET
+      serviceMap:
+        datasourceUid: prometheus
+      nodeGraph:
+        enabled: true
+      # Link Tempo trace IDs back to Loki logs
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        filterByTraceID: true
+        customQuery: true
+        query: '{app=~".+"} | json | traceId = "$${__trace.traceId}"'
