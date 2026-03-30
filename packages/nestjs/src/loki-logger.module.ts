@@ -201,7 +201,7 @@ export class LokiLoggerModule {
    *
    * Routes mounted:
    *   GET /{traceViewerPath}           → Trace viewer SPA
-   *   GET /{traceViewerPath}/api/:id   → JSON span data for a traceId
+   *   GET /{traceViewerPath}/api/:traceId   → JSON span data for a traceId
    */
   static mountViewer(app: any): void {
     const options = app.get(LOKI_LOGGER_OPTIONS) as LokiLoggerOptions;

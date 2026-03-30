@@ -11,13 +11,20 @@ const TransportStream = require('winston-transport') as new (opts?: object) => w
 class MinimalLokiTransport extends TransportStream {
   private readonly lokiUrl: URL;
   private readonly labels: Record<string, string>;
+  private readonly maxRetries: number;
   private buffer: Array<[string, string]> = [];
   private flushTimer: NodeJS.Timeout | null = null;
 
-  constructor(opts: { host: string; labels: Record<string, string>; intervalMs?: number }) {
+  constructor(opts: {
+    host: string;
+    labels: Record<string, string>;
+    intervalMs?: number;
+    maxRetries?: number;
+  }) {
     super();
     this.lokiUrl = new URL('/loki/api/v1/push', opts.host);
     this.labels = opts.labels;
+    this.maxRetries = opts.maxRetries ?? 3;
 
     const intervalMs = opts.intervalMs ?? 5000;
     this.flushTimer = setInterval(() => this.flush(), intervalMs);
@@ -41,8 +48,38 @@ class MinimalLokiTransport extends TransportStream {
       streams: [{ stream: this.labels, values }],
     });
 
+    this.sendWithRetry(body, values, this.maxRetries);
+  }
+
+  /**
+   * Attempts to push `body` to Loki. On failure (network error, non-2xx, or
+   * timeout) waits `200ms * 2^attempt` before retrying up to `retriesLeft`
+   * times. On final failure, puts the batch back in the buffer so it is
+   * included in the next scheduled flush.
+   */
+  private sendWithRetry(
+    body: string,
+    values: Array<[string, string]>,
+    retriesLeft: number,
+    attempt = 0,
+  ): void {
     const isHttps = this.lokiUrl.protocol === 'https:';
     const lib = isHttps ? https : http;
+
+    const retry = () => {
+      if (retriesLeft <= 0) {
+        // Re-queue the batch to be picked up on the next flush cycle.
+        // Prepend so ordering is preserved relative to newer entries.
+        this.buffer = [...values, ...this.buffer];
+        return;
+      }
+      const delayMs = 200 * Math.pow(2, attempt);
+      const timer = setTimeout(
+        () => this.sendWithRetry(body, values, retriesLeft - 1, attempt + 1),
+        delayMs,
+      );
+      if (timer.unref) timer.unref();
+    };
 
     try {
       const req = lib.request(
@@ -59,16 +96,19 @@ class MinimalLokiTransport extends TransportStream {
         },
         (res) => {
           res.resume();
+          // Loki returns 204 on success; retry on any server error.
+          if (res.statusCode && res.statusCode >= 500) retry();
         },
       );
-      req.on('error', () => {
-        /* fire-and-forget */
+      req.on('error', retry);
+      req.on('timeout', () => {
+        req.destroy();
+        retry();
       });
-      req.on('timeout', () => req.destroy());
       req.write(body);
       req.end();
     } catch {
-      // Loki being unreachable is never fatal
+      retry();
     }
   }
 
@@ -155,6 +195,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
           ...opts.extraLabels,
         },
         intervalMs: opts.lokiBatchInterval,
+        maxRetries: opts.lokiRetries,
       }),
     );
 

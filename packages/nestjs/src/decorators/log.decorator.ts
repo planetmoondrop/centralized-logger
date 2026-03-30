@@ -42,8 +42,9 @@ export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
   return (_target: object, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
     const originalMethod = descriptor.value as (...args: unknown[]) => unknown;
     const level = options.level ?? 'debug';
+    const isAsync = originalMethod.constructor.name === 'AsyncFunction';
 
-    descriptor.value = async function (this: unknown, ...args: unknown[]) {
+    const wrapped = function (this: unknown, ...args: unknown[]) {
       const logger = getLogger();
       const className = (this as { constructor: { name: string } }).constructor.name;
       const method = `${className}.${String(propertyKey)}`;
@@ -60,13 +61,9 @@ export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
         entryMeta,
       );
 
-      try {
-        const result = await Promise.resolve(originalMethod.apply(this, args));
-        const duration = Date.now() - start;
-
+      const logExit = (duration: number, result?: unknown) => {
         const exitMeta: Record<string, unknown> = { duration };
         if (options.result) exitMeta.result = result;
-
         logger.logWithType(
           level === 'warn' ? 'warn' : level === 'info' ? 'info' : 'debug',
           `← ${method} +${duration}ms`,
@@ -74,24 +71,40 @@ export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
           className,
           exitMeta,
         );
+      };
 
+      const logError = (err: unknown, duration: number) => {
+        const message = err instanceof Error ? err.message : String(err);
+        logger.logWithType('error', `✕ ${method} +${duration}ms — ${message}`, 'service', className, {
+          duration,
+          stack: err instanceof Error ? err.stack : undefined,
+        });
+      };
+
+      if (isAsync) {
+        return Promise.resolve(originalMethod.apply(this, args))
+          .then((result) => {
+            logExit(Date.now() - start, result);
+            return result;
+          })
+          .catch((err: unknown) => {
+            logError(err, Date.now() - start);
+            throw err;
+          });
+      }
+
+      // Synchronous path — no Promise wrapping, no async overhead.
+      try {
+        const result = originalMethod.apply(this, args);
+        logExit(Date.now() - start, result);
         return result;
       } catch (err: unknown) {
-        const duration = Date.now() - start;
-        const message = err instanceof Error ? err.message : String(err);
-        logger.logWithType(
-          'error',
-          `✕ ${method} +${duration}ms — ${message}`,
-          'service',
-          className,
-          {
-            duration,
-            stack: err instanceof Error ? err.stack : undefined,
-          },
-        );
+        logError(err, Date.now() - start);
         throw err;
       }
     };
+
+    descriptor.value = wrapped;
 
     // Preserve TypeScript metadata for NestJS DI
     Reflect.getMetadataKeys(originalMethod).forEach((key: string) => {

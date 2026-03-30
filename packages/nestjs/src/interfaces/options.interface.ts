@@ -83,8 +83,8 @@ export interface LokiLoggerOptions {
    * Enable the built-in trace viewer UI and REST API.
    *
    * When true, two endpoints are registered:
-   *   GET  {traceViewerPath}/          → serves the trace viewer SPA
-   *   GET  {traceViewerPath}/trace/:id → returns structured span JSON
+   *   GET  {traceViewerPath}/              → serves the trace viewer SPA
+   *   GET  {traceViewerPath}/api/:traceId  → returns structured span JSON
    *
    * The viewer queries Loki directly using lokiHost so no additional
    * infrastructure is needed.
