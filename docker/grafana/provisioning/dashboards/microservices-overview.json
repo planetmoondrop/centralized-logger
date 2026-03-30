@@ -1,57 +1,229 @@
 {
-  "title": "NestJS Microservices — Log Explorer",
+  "title": "NestJS Microservices — Service Overview",
   "uid": "nestjs-loki-overview",
+  "description": "Live health and performance overview across all NestJS microservices.",
   "schemaVersion": 38,
-  "version": 1,
-  "refresh": "10s",
-  "time": { "from": "now-1h", "to": "now" },
-  "tags": ["nestjs", "loki", "microservices"],
+  "version": 2,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["nestjs", "loki", "microservices", "overview"],
+  "editable": true,
+
+  "templating": {
+    "list": [
+      {
+        "name": "app",
+        "label": "Service",
+        "type": "textbox",
+        "description": "Filter to a specific service (regex supported, .+ = all)",
+        "current": { "value": ".+" },
+        "hide": 0
+      }
+    ]
+  },
+
   "panels": [
+
     {
       "id": 1,
-      "title": "Request rate (all services)",
       "type": "timeseries",
+      "title": "Request rate  (req/s per service)",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (app) (rate({app=~\".+-service\"} | json | method != \"\" [1m]))",
-          "legendFormat": "{{app}}"
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
         }
-      ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] }
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "sum by(app) (rate({app=~\"$app\"} | json | logType = \"http_in\" [$__interval]))",
+        "legendFormat": "{{app}}",
+        "refId": "A"
+      }]
     },
+
     {
       "id": 2,
-      "title": "Error rate (all services)",
       "type": "timeseries",
+      "title": "Error rate  (errors/s per service)",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by (app) (rate({app=~\".+-service\"} | json | level = \"error\" [1m]))",
-          "legendFormat": "{{app}} errors"
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
         }
-      ]
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] }
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "sum by(app) (rate({app=~\"$app\"} | json | level = \"error\" [$__interval]))",
+        "legendFormat": "{{app}} errors",
+        "refId": "A"
+      }]
     },
+
     {
       "id": 3,
-      "title": "Log stream — all services",
+      "type": "timeseries",
+      "title": "HTTP 4xx rate  (client errors per service)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "sum by(app) (rate({app=~\"$app\"} | json | logType = \"http_in_res\" | statusCode >= 400 | statusCode < 500 [$__interval]))",
+        "legendFormat": "{{app}} 4xx",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "HTTP 5xx rate  (server errors per service)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "sum by(app) (rate({app=~\"$app\"} | json | logType = \"http_in_res\" | statusCode >= 500 [$__interval]))",
+        "legendFormat": "{{app}} 5xx",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "DB query volume  (queries/s per service)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "sum by(app) (rate({app=~\"$app\"} | json | logType = \"db\" [$__interval]))",
+        "legendFormat": "{{app}} DB",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Outgoing HTTP calls  (calls/s per service)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "unit": "reqps"
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "sum by(app) (rate({app=~\"$app\"} | json | logType = \"http_out\" [$__interval]))",
+        "legendFormat": "{{app}} → outgoing",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 7,
       "type": "logs",
-      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 8 },
+      "title": "Recent errors across all services",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "loki", "uid": "loki" },
       "options": {
         "showTime": true,
         "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "{app=~\"$app\"} | json | level = \"error\"",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 8,
+      "type": "logs",
+      "title": "DB slow queries",
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 38 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
         "wrapLogMessage": true,
         "prettifyLogMessage": true,
         "enableLogDetails": true,
         "sortOrder": "Descending"
       },
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\".+-service\"} | json"
-        }
-      ]
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "{app=~\"$app\"} | json | logType = \"db\" | message =~ \"slow\"",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 9,
+      "type": "logs",
+      "title": "Full log stream  (all services, all levels)",
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 38 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "{app=~\"$app\"} | json",
+        "refId": "A"
+      }]
     }
+
   ]
 }

@@ -1,0 +1,175 @@
+{
+  "title": "Universal Log Search",
+  "uid": "log-search",
+  "description": "Search across all services by any field: traceId, userId, email, name, phone number, UUID, or any value that appears in your logs.",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": false,
+  "time": { "from": "now-30d", "to": "now" },
+  "tags": ["nestjs", "loki", "search"],
+  "editable": true,
+
+  "templating": {
+    "list": [
+      {
+        "name": "search",
+        "label": "Search term",
+        "description": "Enter any value: email, userId, UUID, phone number, name, etc.",
+        "type": "textbox",
+        "current": { "value": "" },
+        "hide": 0
+      },
+      {
+        "name": "level",
+        "label": "Level",
+        "type": "custom",
+        "query": "all,error,warn,info,debug",
+        "current": { "value": "all", "text": "all" },
+        "options": [
+          { "text": "all",   "value": "all",   "selected": true },
+          { "text": "error", "value": "error" },
+          { "text": "warn",  "value": "warn"  },
+          { "text": "info",  "value": "info"  },
+          { "text": "debug", "value": "debug" }
+        ],
+        "hide": 0
+      },
+      {
+        "name": "logType",
+        "label": "Log type",
+        "type": "custom",
+        "query": "all,http_in,http_in_res,http_out,db,service,event,interceptor",
+        "current": { "value": "all", "text": "all" },
+        "options": [
+          { "text": "all",         "value": "all"         , "selected": true },
+          { "text": "http_in",     "value": "http_in"     },
+          { "text": "http_out",    "value": "http_out"    },
+          { "text": "db",          "value": "db"          },
+          { "text": "service",     "value": "service"     },
+          { "text": "event",       "value": "event"       },
+          { "text": "interceptor", "value": "interceptor" }
+        ],
+        "hide": 0
+      },
+      {
+        "name": "app",
+        "label": "Service",
+        "type": "textbox",
+        "description": "Filter by service name (regex supported, leave .+ for all)",
+        "current": { "value": ".+" },
+        "hide": 0
+      }
+    ]
+  },
+
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Universal Search\nSearch your logs by **any field value** — email address, userId, UUID, name, phone number, or any string that appears anywhere in a log line.\n- Results are clickable — any `traceId` in a log line has a **\"Open in Tempo ↗\"** link to jump to the full trace waterfall.\n- Use the **Level** and **Log type** dropdowns to narrow results.\n- For a deep trace journey, copy the `traceId` and open the **Trace Journey Explorer** dashboard."
+      },
+      "transparent": true
+    },
+
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Matching Lines",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 3 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "sum(count_over_time({app=~\"$app\"} |~ \"$search\" [30d]))",
+        "instant": true,
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Services with Matches",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 3 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "unit": "short"
+        }
+      },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "count(sum by(app) (count_over_time({app=~\"$app\"} |~ \"$search\" [30d])))",
+        "instant": true,
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Match volume over time",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 3 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } }
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [{
+        "datasource": { "type": "loki", "uid": "loki" },
+        "expr": "sum by(app) (count_over_time({app=~\"$app\"} |~ \"$search\" [$__interval]))",
+        "legendFormat": "{{app}}",
+        "refId": "A"
+      }]
+    },
+
+    {
+      "id": 20,
+      "type": "logs",
+      "title": "Matching Log Lines  (click a traceId to open full journey in Tempo)",
+      "gridPos": { "h": 24, "w": 24, "x": 0, "y": 11 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$app\", level=~\"$level\"} | json | logType =~ \"$logType\" |~ \"$search\"",
+          "refId": "level-type-search"
+        }
+      ]
+    }
+
+  ]
+}

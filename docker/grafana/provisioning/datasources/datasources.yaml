@@ -1,39 +1,55 @@
 apiVersion: 1
 
 datasources:
-  # ── Loki — primary log store ────────────────────────────────────────
+  # ── Loki — primary log store ───────────────────────────────────────────────
   - name: Loki
     type: loki
+    uid: loki          # explicit uid so Tempo can reference it reliably
     access: proxy
     url: http://loki:3100
     isDefault: true
     jsonData:
-      maxLines: 1000
-      # Link traceId values in log lines to Tempo traces
+      maxLines: 5000
+      # ── Loki → Tempo: click any traceId in a log line to open the trace ──
       derivedFields:
         - name: TraceID
-          matcherRegex: '"traceId":"([^"]+)"'
-          url: '$${__value.raw}'
+          matcherRegex: '"traceId":"([a-f0-9\-]{36})"'
+          url: '${__value.raw}'
           datasourceUid: tempo
-          urlDisplayLabel: "View trace in Tempo"
+          urlDisplayLabel: "Open in Tempo ↗"
+        - name: SpanID
+          matcherRegex: '"spanId":"([a-f0-9\-]{36})"'
+          url: '${__value.raw}'
+          datasourceUid: tempo
+          urlDisplayLabel: "Open span in Tempo ↗"
 
-  # ── Tempo — distributed trace store ────────────────────────────────
+  # ── Tempo — distributed trace store ───────────────────────────────────────
   - name: Tempo
     type: tempo
-    uid: tempo
+    uid: tempo         # referenced by Loki derivedFields above
     access: proxy
     url: http://tempo:3200
     jsonData:
       httpMethod: GET
+      # ── Service map (requires Prometheus metrics; wired but optional) ────
       serviceMap:
-        datasourceUid: prometheus
+        datasourceUid: ""
       nodeGraph:
         enabled: true
-      # Link Tempo trace IDs back to Loki logs
+      # ── Tempo → Loki: from a span, jump to all logs in that time window ──
       tracesToLogsV2:
         datasourceUid: loki
-        spanStartTimeShift: "-1m"
-        spanEndTimeShift: "1m"
+        spanStartTimeShift: "-2m"
+        spanEndTimeShift:   "2m"
         filterByTraceID: true
+        filterBySpanID:  false
         customQuery: true
-        query: '{app=~".+"} | json | traceId = "$${__trace.traceId}"'
+        # Searches ALL services for this traceId — full journey in one click
+        query: '{app=~".+"} | json | traceId = "${__trace.traceId}"'
+      # ── Tempo → Loki: also surface span-level logs when filterBySpanID ──
+      tracesToLogs:
+        datasourceUid: loki
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift:   "1m"
+        filterByTraceID: true
+        filterBySpanID:  true
