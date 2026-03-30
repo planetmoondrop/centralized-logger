@@ -28,7 +28,6 @@
     "logger"
   ],
   "main": "dist/index.js",
-  "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "files": [
     "dist",
@@ -55,6 +54,7 @@
     "prepare": "husky install"
   },
   "peerDependencies": {
+    "typeorm": "^0.3.28",
     "@nestjs/common": "^9.0.0 || ^10.0.0",
     "@nestjs/core": "^9.0.0 || ^10.0.0",
     "reflect-metadata": "^0.1.13",
@@ -69,10 +69,8 @@
     }
   },
   "dependencies": {
-    "typeorm": "^0.3.28",
     "uuid": "^9.0.1",
-    "winston": "^3.11.0",
-    "winston-loki": "^6.1.2"
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "@nestjs/axios": "^3.0.2",

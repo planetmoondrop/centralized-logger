@@ -90,7 +90,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
     this.resolvedOptions = {
       environment: process.env.NODE_ENV ?? 'development',
       extraLabels: {},
-      traceHeader: 'x-trace-id',
+      traceHeader: 'x-loki-trace-id',
       parentSpanHeader: 'x-parent-span-id',
       logLevel: 'info',
       consoleOutput: true,

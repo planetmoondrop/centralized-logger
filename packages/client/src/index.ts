@@ -1,10 +1,6 @@
-import type {
-  AxiosInstance,
-  InternalAxiosRequestConfig,
-  AxiosResponse,
-} from "axios";
-import { SessionInterceptorOptions, SessionStorage } from "./types";
-import { MemoryStorage } from "./storage";
+import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import { SessionInterceptorOptions, SessionStorage } from './types';
+import { MemoryStorage } from './storage';
 
 /**
  * Attaches an interceptor to the given Axios instance that manages the `x-session-id` header.
@@ -21,9 +17,9 @@ export function attachSessionInterceptor(
   options: SessionInterceptorOptions = {},
 ): number {
   const {
-    responseHeader = "x-loki-trace-id",
-    requestHeader = "x-loki-trace-id",
-    storageKey = "sessionId",
+    responseHeader = 'x-loki-trace-id',
+    requestHeader = 'x-loki-trace-id',
+    storageKey = 'traceId',
     storage = new MemoryStorage(),
   } = options;
 
@@ -37,10 +33,7 @@ export function attachSessionInterceptor(
         }
       } catch (err) {
         // Silently fail – do not block the request
-        console.warn(
-          "[axios-session-interceptor] Failed to read session ID:",
-          err,
-        );
+        console.warn('[axios-session-interceptor] Failed to read session ID:', err);
       }
       return config;
     },
@@ -51,14 +44,11 @@ export function attachSessionInterceptor(
   const responseInterceptor = axiosInstance.interceptors.response.use(
     async (response: AxiosResponse) => {
       const sessionId = response.headers?.[responseHeader];
-      if (sessionId && typeof sessionId === "string") {
+      if (sessionId && typeof sessionId === 'string') {
         try {
           await storage.setItem(storageKey, sessionId);
         } catch (err) {
-          console.warn(
-            "[axios-session-interceptor] Failed to save session ID:",
-            err,
-          );
+          console.warn('[axios-session-interceptor] Failed to save session ID:', err);
         }
       }
       return response;

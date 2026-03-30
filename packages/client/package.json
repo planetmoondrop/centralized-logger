@@ -1,7 +1,7 @@
 {
   "name": "@moondrop/logger-client",
   "version": "1.0.0",
-  "description": "Axios interceptor to manage x-session-id header",
+  "description": "Axios interceptor to manage x-trace-id header",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -14,8 +14,8 @@
   "keywords": [
     "axios",
     "interceptor",
-    "session",
-    "x-session-id",
+    "trace",
+    "x-trace-id",
     "moondrop interceptor",
     "axios interceptor",
     "moondrop"
