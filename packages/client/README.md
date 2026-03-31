@@ -1,59 +1,85 @@
-# Moondrop axios interceptor
+# @moondrop/logger-client
 
-An Axios interceptor that automatically handles `x-loki-trace-id` headers. It reads the session ID from response headers, saves it (persistently if you provide a storage), and sends it back in all subsequent requests.
+Axios interceptor for frontend apps that connects them to the `moondrop-centralized-logger` trace chain.
+
+Reads the `x-loki-trace-id` response header from any API response and injects it back into every subsequent request — so your frontend sessions appear as a continuous trace in Grafana alongside the backend logs.
 
 ## Installation
 
 ```bash
-# npm
-npm install moondrop-axios-interceptor
-
-# pnpm
-pnpm add moondrop-axios-interceptor
+npm install @moondrop/logger-client axios
+# or
+pnpm add @moondrop/logger-client axios
 ```
 
-## Usage
+## Basic usage
 
-```bash
+```ts
 import axios from 'axios';
-import { attachSessionInterceptor } from 'axios-session-interceptor';
+import { attachSessionInterceptor } from '@moondrop/logger-client';
 
-const api = axios.create();
+const api = axios.create({ baseURL: 'https://api.example.com' });
 
-#  Attach the interceptor – session ID will be stored in memory
-attachSessionInterceptor(api);
+// Attach once at app startup.
+// Returns both interceptor IDs so you can eject later if needed.
+const { requestId, responseId } = attachSessionInterceptor(api);
 ```
 
-## With persistent storage (web)
+That's it. Every response that includes `x-loki-trace-id` stores the value, and every outgoing request includes it so the backend can correlate the call to an existing trace.
 
-```bash
-import axios from 'axios';
-import { attachSessionInterceptor } from 'axios-session-interceptor';
+## Options
 
-const api = axios.create();
+```ts
+const ids = attachSessionInterceptor(api, {
+  // Response header to read the trace ID from
+  responseHeader: 'x-loki-trace-id',    // default
 
-#  Use localStorage for persistence
-attachSessionInterceptor(api, {
-  storage: {
-    getItem: (key) => localStorage.getItem(key),
-    setItem: (key, value) => localStorage.setItem(key, value),
-  },
+  // Request header to inject the trace ID into
+  requestHeader: 'x-loki-trace-id',     // default
+
+  // Key used to store the trace ID in the storage backend
+  storageKey: 'sessionId',              // default
+
+  // Custom storage — defaults to MemoryStorage (in-process Map).
+  // Provide any object that implements { getItem, setItem }.
+  storage: myStorage,
 });
 ```
 
-## With React Native (AsyncStorage)
+## Custom storage
 
-```bash
-import axios from 'axios';
+The default `MemoryStorage` keeps the trace ID in a `Map` — it works fine for a single-page session but clears on page reload. Provide your own storage to persist across reloads:
+
+```ts
+import { attachSessionInterceptor, SessionStorage } from '@moondrop/logger-client';
+
+// Browser localStorage
+const webStorage: SessionStorage = {
+  getItem:  (key) => localStorage.getItem(key),
+  setItem:  (key, value) => localStorage.setItem(key, value),
+};
+
+attachSessionInterceptor(api, { storage: webStorage });
+```
+
+```ts
+// React Native — AsyncStorage (async storage is fully supported)
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { attachSessionInterceptor } from 'axios-session-interceptor';
-
-const api = axios.create();
 
 attachSessionInterceptor(api, {
   storage: {
-    getItem: async (key) => await AsyncStorage.getItem(key),
-    setItem: async (key, value) => await AsyncStorage.setItem(key, value),
+    getItem:  (key) => AsyncStorage.getItem(key),
+    setItem:  (key, value) => AsyncStorage.setItem(key, value),
   },
 });
+```
+
+## Ejecting
+
+```ts
+const { requestId, responseId } = attachSessionInterceptor(api);
+
+// Remove both interceptors (e.g. on logout)
+api.interceptors.request.eject(requestId);
+api.interceptors.response.eject(responseId);
 ```

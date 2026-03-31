@@ -27,7 +27,7 @@ compactor:
     # Merge small blocks every hour to keep query performance high
     compaction_window: 1h
     max_compaction_objects: 6000000
-    block_retention: 720h # 30 days — matches Loki retention window
+    block_retention: 720h    # 30 days — matches Loki retention window
     compacted_block_retention: 1h
   ring:
     kvstore:
@@ -55,4 +55,4 @@ overrides:
     global:
       max_bytes_per_trace: 10000000
     compaction:
-      block_retention: 720h # 30 days
+      block_retention: 720h   # 30 days
