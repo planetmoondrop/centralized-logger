@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "start": "ts-node src/main.ts",
+    "build": "tsc",
     "dev": "nodemon --watch src --ext ts --exec ts-node src/main.ts"
   },
   "dependencies": {

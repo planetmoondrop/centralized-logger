@@ -16,7 +16,6 @@
 version: '3.9'
 
 services:
-
   # ── Observability: Loki ────────────────────────────────────────────────────
   loki:
     image: grafana/loki:2.9.3
@@ -144,7 +143,7 @@ services:
     environment:
       NODE_ENV: development
       LOKI_HOST: http://loki:3100
-      AUTH_SERVICE_URL:    http://auth-service:3001
+      AUTH_SERVICE_URL: http://auth-service:3001
       SUPPORT_SERVICE_URL: http://customer-support:3002
       CORS_ORIGINS: 'http://localhost:5173,http://localhost:3000'
     labels:
