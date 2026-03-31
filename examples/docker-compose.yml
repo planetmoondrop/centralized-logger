@@ -93,7 +93,7 @@ services:
   # ── auth-service ───────────────────────────────────────────────────────────
   auth-service:
     build:
-      context: ..                              # repo root — needed for file: deps
+      context: ..
       dockerfile: examples/auth-service/Dockerfile
     container_name: auth-service
     restart: unless-stopped
@@ -103,7 +103,7 @@ services:
       NODE_ENV: development
       LOKI_HOST: http://loki:3100
     labels:
-      app: auth-service                        # picked up by Promtail label relabelling
+      app: auth-service
       env: development
     depends_on:
       loki:
@@ -144,10 +144,8 @@ services:
     environment:
       NODE_ENV: development
       LOKI_HOST: http://loki:3100
-      # Container-to-container — use service names, not localhost
       AUTH_SERVICE_URL:    http://auth-service:3001
       SUPPORT_SERVICE_URL: http://customer-support:3002
-      # Allow requests from the host browser on port 5173 and 3000
       CORS_ORIGINS: 'http://localhost:5173,http://localhost:3000'
     labels:
       app: backend
@@ -162,17 +160,16 @@ services:
     networks:
       - moondrop
 
-  # ── frontend ──────────────────────────────────────────────────────────────
+  # ── frontend (Next.js) ────────────────────────────────────────────────────
   frontend:
     build:
       context: ..
       dockerfile: examples/frontend/Dockerfile
       args:
-        # These are baked into the Vite bundle at build time.
-        # They must be host-accessible URLs because the browser runs on the host,
-        # not inside Docker — so we use localhost, not the container service name.
-        VITE_API_URL: http://localhost:3003/api
-        VITE_TRACE_VIEWER: http://localhost:3003/_trace
+        # Baked into the Next.js bundle at build time.
+        # Must be host-accessible URLs — browser runs on the host, not in Docker.
+        NEXT_PUBLIC_API_URL: http://localhost:3003/api
+        NEXT_PUBLIC_TRACE_VIEWER: http://localhost:3003/_trace
     container_name: frontend
     restart: unless-stopped
     ports:

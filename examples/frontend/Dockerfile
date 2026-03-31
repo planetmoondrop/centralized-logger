@@ -1,29 +1,48 @@
+# Build context: repo root (set in docker-compose)
+# This mirrors the original Vite Dockerfile structure exactly.
+
 FROM node:20-alpine AS builder
-RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/client/package.json  ./packages/client/
-COPY examples/frontend/package.json ./examples/frontend/
-RUN pnpm install --ignore-scripts --filter @moondrop/logger-client --filter @example/frontend
-
-# Build logger-client first
-COPY packages/client/src        ./packages/client/src
+# 1. Build @moondrop/logger-client package
+COPY packages/client/package.json ./packages/client/
+RUN cd packages/client && npm install --ignore-scripts
+COPY packages/client/src         ./packages/client/src
 COPY packages/client/tsconfig.json ./packages/client/
-RUN pnpm --filter @moondrop/logger-client build
+RUN cd packages/client && npm run build
 
-# Build frontend — VITE_API_URL and VITE_TRACE_VIEWER are baked in at build time.
-# They point at the host-accessible backend so the browser can reach it.
-COPY examples/frontend/ ./examples/frontend/
-ARG VITE_API_URL=http://localhost:3003/api
-ARG VITE_TRACE_VIEWER=http://localhost:3003/_trace
-ENV VITE_API_URL=$VITE_API_URL
-ENV VITE_TRACE_VIEWER=$VITE_TRACE_VIEWER
-WORKDIR /app/examples/frontend
-RUN pnpm exec vite build
+# 2. Install frontend deps
+#    npm resolves file:../../packages/client correctly since it's already built above
+COPY examples/frontend/package.json ./examples/frontend/
+RUN cd examples/frontend && npm install --legacy-peer-deps
 
-FROM nginx:1.25-alpine AS runner
-COPY --from=builder /app/examples/frontend/dist /usr/share/nginx/html
-COPY examples/frontend/nginx.conf /etc/nginx/conf.d/default.conf
+# 3. Build Next.js app
+COPY examples/frontend/src         ./examples/frontend/src
+COPY examples/frontend/next.config.js ./examples/frontend/
+COPY examples/frontend/tsconfig.json  ./examples/frontend/
+COPY examples/frontend/tailwind.config.ts ./examples/frontend/
+COPY examples/frontend/postcss.config.js  ./examples/frontend/
+
+ARG NEXT_PUBLIC_API_URL=http://localhost:3003/api
+ARG NEXT_PUBLIC_TRACE_VIEWER=http://localhost:3003/_trace
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_TRACE_VIEWER=$NEXT_PUBLIC_TRACE_VIEWER
+
+RUN cd examples/frontend && npm run build
+
+# 4. Runtime — lean Next.js standalone image
+FROM node:20-alpine AS runner
+RUN addgroup -S app && adduser -S app -G app
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY --from=builder /app/examples/frontend/.next/standalone ./
+COPY --from=builder /app/examples/frontend/.next/static     ./.next/static
+# COPY --from=builder /app/examples/frontend/public           ./public
+
+USER app
 EXPOSE 5173
-CMD ["nginx", "-g", "daemon off;"]
+ENV PORT=5173
+ENV HOSTNAME=0.0.0.0
+CMD ["node", "server.js"]
