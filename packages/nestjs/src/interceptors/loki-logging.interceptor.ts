@@ -1,9 +1,9 @@
-import { Injectable, NestInterceptor, ExecutionContext, CallHandler, Inject } from '@nestjs/common';
+import { Injectable, NestInterceptor, ExecutionContext, CallHandler } from '@nestjs/common';
 import { Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { throwError } from 'rxjs';
 import { LokiLoggerService } from '../core/loki-logger.service';
-import { LokiLoggerOptions, LOKI_LOGGER_OPTIONS } from '../interfaces';
+
 import { getCurrentTrace } from '../core/trace-context';
 
 /**
@@ -19,12 +19,7 @@ import { getCurrentTrace } from '../core/trace-context';
  */
 @Injectable()
 export class LokiLoggingInterceptor implements NestInterceptor {
-  constructor(
-    private readonly logger: LokiLoggerService,
-    @Inject(LOKI_LOGGER_OPTIONS) private readonly _options: LokiLoggerOptions,
-  ) {
-    void this._options;
-  }
+  constructor(private readonly logger: LokiLoggerService) {}
 
   intercept(executionCtx: ExecutionContext, next: CallHandler): Observable<unknown> {
     const handlerName = `${executionCtx.getClass().name}.${executionCtx.getHandler().name}`;

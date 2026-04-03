@@ -14,8 +14,6 @@ export {
 } from './core/trace-context';
 
 // ── Global logger singleton (use without DI) ──────────────────────
-// getLogger() returns the LokiLoggerService instance after apply() is called.
-// Useful in decorators, utilities, or anywhere you can't inject via constructor.
 export { getLogger, setLoggerRef } from './core/logger-ref';
 
 // ── HTTP service ──────────────────────────────────────────────────
@@ -41,3 +39,10 @@ export {
 // ── Trace Viewer ──────────────────────────────────────────────────
 export { TraceViewerService } from './viewer/trace-viewer.service';
 export type { TraceResult, Span, SpanLog } from './viewer/trace-viewer.service';
+
+// ── Prometheus Metrics ────────────────────────────────────────────
+export { MetricsService } from './metrics/metrics.service';
+
+// ── OpenTelemetry / Tempo Tracing ─────────────────────────────────
+export { initObservability, getActiveOtelContext } from './otel/init';
+export type { ObservabilityOptions } from './otel/init';

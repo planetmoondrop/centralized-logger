@@ -3,13 +3,11 @@ server:
   grpc_listen_port: 0
   log_level: warn
 
-# Tracks log positions so restarts don't re-ship old lines
 positions:
   filename: /tmp/positions.yaml
 
 clients:
   - url: http://loki:3100/loki/api/v1/push
-    # Retry configuration — ensures no log loss on transient Loki issues
     backoff_config:
       min_period:  500ms
       max_period:  5m
@@ -17,51 +15,59 @@ clients:
     timeout: 10s
 
 scrape_configs:
-  # ── Docker container log scraping ─────────────────────────────────
+  # ── Docker container log scraping ─────────────────────────────────────────
   - job_name: docker-containers
     docker_sd_configs:
       - host: unix:///var/run/docker.sock
         refresh_interval: 5s
         filters:
-          # Only tail containers that have an 'app' Docker label
           - name: label
             values: ["app"]
 
     relabel_configs:
-      # Promote the Docker 'app' label → Loki 'app' index label
+      # app and env from Docker labels → Loki stream labels
       - source_labels: [__meta_docker_container_label_app]
         target_label: app
-
-      # Promote the Docker 'env' label → Loki 'env' index label
       - source_labels: [__meta_docker_container_label_env]
         target_label: env
-
-      # Include the full container name for debugging
       - source_labels: [__meta_docker_container_name]
         regex: "/(.*)"
         target_label: container
 
     pipeline_stages:
-      # ── 1. Parse the JSON log line emitted by winston ──────────────
+      # ── 1. Parse the JSON log line emitted by winston ────────────────────
       - json:
           expressions:
-            traceId:    traceId
-            level:      level
-            context:    context
-            userId:     userId
-            statusCode: statusCode
-            duration:   duration
+            # Low-cardinality fields → will become Loki stream labels
+            level:        level
+            logType:      logType
+            context:      context
+            # High-cardinality fields → extracted but NOT promoted to labels.
+            # They are indexed by TSDB at query time via | json.
+            # This keeps the Loki label index small while still allowing fast
+            # filtering: {app="auth-service"} | json | traceId = "abc123"
+            traceId:      traceId
+            spanId:       spanId
+            parentSpanId: parentSpanId
+            userId:       userId
+            method:       method
+            path:         path
+            statusCode:   statusCode
+            duration:     duration
+            service:      service
 
-      # ── 2. Promote parsed fields → Loki index labels ───────────────
-      # Only high-cardinality-safe fields should be labels.
-      # traceId and userId are HIGH cardinality — they are kept as
-      # structured metadata (not labels) so Loki can filter them with
-      # | json | traceId = "..." without blowing up the label index.
+      # ── 2. Promote ONLY low-cardinality fields to Loki stream labels ─────
+      # Rule of thumb: < ~1000 distinct values globally is safe as a label.
+      # level:   4 values    ✓
+      # logType: 7 values    ✓
+      # context: ~20 values  ✓
+      # app:     set by Docker label relabelling above  ✓
       - labels:
-          level:        # Low cardinality ✓ — safe as label
-          context:      # Medium cardinality ✓ — safe as label
+          level:
+          logType:
+          context:
 
-      # ── 3. Set log timestamp from the JSON 'timestamp' field ────────
+      # ── 3. Normalise timestamp from winston's timestamp field ────────────
       - timestamp:
           source: time
           format: RFC3339Nano
@@ -69,7 +75,7 @@ scrape_configs:
             - RFC3339
             - UnixMs
 
-      # ── 4. Drop health-check noise ──────────────────────────────────
+      # ── 4. Drop high-frequency noise that pollutes dashboards ───────────
       - drop:
-          expression: ".*(GET /health|GET /metrics|GET /favicon).*"
-          drop_counter_reason: health_check_noise
+          expression: ".*(GET /health|GET /healthz|GET /metrics|GET /favicon|HEAD /).*"
+          drop_counter_reason: health_probe_noise

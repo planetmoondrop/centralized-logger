@@ -4,7 +4,8 @@
 export interface LokiLoggerOptions {
   /**
    * Unique name for this microservice.
-   * Used as the `app` label in every Loki log line.
+   * Used as the `app` label in every Loki log line and as the `app` label
+   * in Prometheus metrics.
    * @example 'auth-service'
    */
   serviceName: string;
@@ -80,14 +81,18 @@ export interface LokiLoggerOptions {
   logRequestBody?: boolean;
 
   /**
+   * When true, logs the outgoing response body (truncated to 2 KB).
+   * Warning: may log sensitive data. Enable only for debugging.
+   * @default false
+   */
+  logResponseBody?: boolean;
+
+  /**
    * Enable the built-in trace viewer UI and REST API.
    *
    * When true, two endpoints are registered:
-   *   GET  {traceViewerPath}/          → serves the trace viewer SPA
-   *   GET  {traceViewerPath}/trace/:id → returns structured span JSON
-   *
-   * The viewer queries Loki directly using lokiHost so no additional
-   * infrastructure is needed.
+   *   GET  {traceViewerPath}/              → serves the trace viewer SPA
+   *   GET  {traceViewerPath}/api/:traceId  → returns structured span JSON
    *
    * @default false
    */
@@ -105,6 +110,56 @@ export interface LokiLoggerOptions {
    * @example 'auth-service,business-service,gateway'
    */
   traceViewerServices?: string;
+
+  // ── Observability: Prometheus Metrics ────────────────────────────────────
+
+  /**
+   * Expose a Prometheus `/metrics` endpoint.
+   * Records HTTP request duration, count, in-flight, plus all default
+   * Node.js metrics (heap, GC, event loop, CPU, RSS).
+   * Powers the "Node System Health" Grafana dashboard.
+   * @default false
+   */
+  enableMetrics?: boolean;
+
+  /**
+   * Mount path for the Prometheus metrics endpoint.
+   * @default '/metrics'
+   */
+  metricsPath?: string;
+
+  // ── Observability: OpenTelemetry Tracing ─────────────────────────────────
+
+  /**
+   * Enable OpenTelemetry context extraction.
+   * When true, the middleware reads the active OTEL span context and uses
+   * its traceId/spanId in all Loki log entries.  This makes every Loki log
+   * line click-through to the matching Tempo trace waterfall.
+   *
+   * Requires `@opentelemetry/api` (always bundled) plus an SDK set up by
+   * calling `initObservability()` BEFORE NestFactory.create().
+   * @default false
+   */
+  enableTracing?: boolean;
+
+  /**
+   * OTLP HTTP endpoint for sending spans to Tempo.
+   * Only used by `initObservability()`.
+   * @default 'http://localhost:4318'
+   */
+  otlpEndpoint?: string;
+
+  // ── Observability: API Key / Tenant ──────────────────────────────────────
+
+  /**
+   * Optional API key / tenant identifier sent as `X-Scope-OrgID` on every
+   * Loki push request.  Use this when Loki is configured with multi-tenancy
+   * (`auth_enabled: true`) or when you want to scope logs per team / project.
+   *
+   * Generate a key with: `node -e "console.log(require('crypto').randomUUID())"`
+   * @example 'team-payments-prod'
+   */
+  apiKey?: string;
 }
 
 /**
