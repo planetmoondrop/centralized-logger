@@ -5,14 +5,17 @@ import { AuthModule } from './auth/auth.module';
 @Module({
   imports: [
     LokiLoggerModule.register({
-      serviceName: 'auth-service',
+      serviceName: 'auth-servicess',
       lokiHost: process.env['LOKI_HOST'] ?? 'http://localhost:3100',
       logLevel: 'debug',
       consoleOutput: true,
       enableTraceViewer: true,
       traceViewerServices: 'auth-service,customer-support,backend',
+      enableMetrics: true,
+      logRequestBody: true,
+      logResponseBody: true,
     }),
     AuthModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

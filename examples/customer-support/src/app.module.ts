@@ -9,8 +9,11 @@ import { TicketsModule } from './tickets/tickets.module';
       lokiHost: process.env['LOKI_HOST'] ?? 'http://localhost:3100',
       logLevel: 'debug',
       consoleOutput: true,
+      enableMetrics: true,
+      logRequestBody: true,
+      logResponseBody: true,
     }),
     TicketsModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
