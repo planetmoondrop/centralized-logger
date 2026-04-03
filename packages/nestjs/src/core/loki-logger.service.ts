@@ -11,13 +11,23 @@ const TransportStream = require('winston-transport') as new (opts?: object) => w
 class MinimalLokiTransport extends TransportStream {
   private readonly lokiUrl: URL;
   private readonly labels: Record<string, string>;
+  private readonly maxRetries: number;
+  private readonly apiKey: string | undefined;
   private buffer: Array<[string, string]> = [];
   private flushTimer: NodeJS.Timeout | null = null;
 
-  constructor(opts: { host: string; labels: Record<string, string>; intervalMs?: number }) {
+  constructor(opts: {
+    host: string;
+    labels: Record<string, string>;
+    intervalMs?: number;
+    maxRetries?: number;
+    apiKey?: string;
+  }) {
     super();
     this.lokiUrl = new URL('/loki/api/v1/push', opts.host);
     this.labels = opts.labels;
+    this.maxRetries = opts.maxRetries ?? 3;
+    this.apiKey = opts.apiKey;
 
     const intervalMs = opts.intervalMs ?? 5000;
     this.flushTimer = setInterval(() => this.flush(), intervalMs);
@@ -41,34 +51,70 @@ class MinimalLokiTransport extends TransportStream {
       streams: [{ stream: this.labels, values }],
     });
 
+    this.sendWithRetry(body, values, this.maxRetries);
+  }
+
+  /**
+   * Attempts to push `body` to Loki. On failure (network error, non-2xx, or
+   * timeout) waits `200ms * 2^attempt` before retrying up to `retriesLeft`
+   * times. On final failure, puts the batch back in the buffer so it is
+   * included in the next scheduled flush.
+   */
+  private sendWithRetry(
+    body: string,
+    values: Array<[string, string]>,
+    retriesLeft: number,
+    attempt = 0,
+  ): void {
     const isHttps = this.lokiUrl.protocol === 'https:';
     const lib = isHttps ? https : http;
 
+    const retry = () => {
+      if (retriesLeft <= 0) {
+        // Re-queue the batch to be picked up on the next flush cycle.
+        // Prepend so ordering is preserved relative to newer entries.
+        this.buffer = [...values, ...this.buffer];
+        return;
+      }
+      const delayMs = 200 * Math.pow(2, attempt);
+      const timer = setTimeout(
+        () => this.sendWithRetry(body, values, retriesLeft - 1, attempt + 1),
+        delayMs,
+      );
+      if (timer.unref) timer.unref();
+    };
+
     try {
+      const headers: Record<string, string | number> = {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      };
+      if (this.apiKey) headers['X-Scope-OrgID'] = this.apiKey;
+
       const req = lib.request(
         {
           hostname: this.lokiUrl.hostname,
           port: this.lokiUrl.port || (isHttps ? 443 : 80),
           path: this.lokiUrl.pathname,
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(body),
-          },
+          headers,
           timeout: 5000,
         },
         (res) => {
           res.resume();
+          // Loki returns 204 on success; retry on any server error.
+          if (res.statusCode && res.statusCode >= 500) retry();
         },
       );
-      req.on('error', () => {
-        /* fire-and-forget */
+      req.on('error', retry);
+      req.on('timeout', () => {
+        req.destroy();
+        retry();
       });
-      req.on('timeout', () => req.destroy());
       req.write(body);
       req.end();
     } catch {
-      // Loki being unreachable is never fatal
+      retry();
     }
   }
 
@@ -84,13 +130,13 @@ class MinimalLokiTransport extends TransportStream {
 @Injectable()
 export class LokiLoggerService implements LoggerService, OnModuleDestroy {
   private readonly logger: winston.Logger;
-  readonly resolvedOptions: Required<LokiLoggerOptions>;
+  readonly resolvedOptions: Required<Omit<LokiLoggerOptions, 'apiKey'>> & { apiKey: string | undefined };
 
   constructor(@Inject(LOKI_LOGGER_OPTIONS) options: LokiLoggerOptions) {
     this.resolvedOptions = {
       environment: process.env.NODE_ENV ?? 'development',
       extraLabels: {},
-      traceHeader: 'x-trace-id',
+      traceHeader: 'x-loki-trace-id',
       parentSpanHeader: 'x-parent-span-id',
       logLevel: 'info',
       consoleOutput: true,
@@ -98,11 +144,17 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
       lokiBatchInterval: 5000,
       lokiRetries: 3,
       logRequestBody: false,
+      logResponseBody: false,
       enableTraceViewer: false,
       traceViewerPath: '/_trace',
       traceViewerServices: options.serviceName,
+      enableMetrics: false,
+      metricsPath: '/metrics',
+      enableTracing: false,
+      otlpEndpoint: 'http://localhost:4318',
+      apiKey: undefined,
       ...options,
-    };
+    } as Required<Omit<LokiLoggerOptions, 'apiKey'>> & { apiKey: string | undefined };
 
     const opts = this.resolvedOptions;
     const transports: winston.transport[] = [];
@@ -155,6 +207,8 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
           ...opts.extraLabels,
         },
         intervalMs: opts.lokiBatchInterval,
+        maxRetries: opts.lokiRetries,
+        apiKey: opts.apiKey,
       }),
     );
 
@@ -245,6 +299,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
         service: store.service,
         path: store.requestPath,
         method: store.method,
+        ...(store.ip && { ip: store.ip }),
         ...(store.userId && { userId: store.userId }),
         sequence,
       }),

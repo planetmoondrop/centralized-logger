@@ -8,20 +8,67 @@ import {
 } from '@nestjs/common';
 import { Observable, throwError } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
-import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
 import { VIEWER_HTML } from './viewer/viewer.html';
 import { setLoggerRef } from './core/logger-ref';
 import { LokiLoggerOptions, LokiLoggerAsyncOptions, LOKI_LOGGER_OPTIONS } from './interfaces';
 import { LokiLoggerService } from './core/loki-logger.service';
 import { TraceViewerService } from './viewer/trace-viewer.service';
+import { MetricsService } from './metrics/metrics.service';
 import { traceStorage } from './core/trace-context';
+import { getActiveOtelContext } from './otel/init';
 
 type Req = import('express').Request;
 type Res = import('express').Response;
 type NextFn = import('express').NextFunction;
 
-const CORE_PROVIDERS: Provider[] = [LokiLoggerService, TraceViewerService];
-const CORE_EXPORTS = [LOKI_LOGGER_OPTIONS, LokiLoggerService, TraceViewerService];
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+/** Generate a 32-char lowercase hex trace ID (OpenTelemetry / Tempo compatible). */
+function generateTraceId(): string {
+  return randomBytes(16).toString('hex');
+}
+
+/** Generate a 16-char lowercase hex span ID (OpenTelemetry / Tempo compatible). */
+function generateSpanId(): string {
+  return randomBytes(8).toString('hex');
+}
+
+/**
+ * Resolve the effective traceId for this hop.
+ *
+ * Priority order:
+ *  1. Active OpenTelemetry span — ensures Loki logs and Tempo spans share IDs.
+ *  2. Incoming x-loki-trace-id request header — continues a cross-service trace.
+ *  3. Fresh random hex trace ID — starts a new trace.
+ */
+function resolveTraceId(incomingHeader: string | undefined, enableTracing: boolean): string {
+  if (enableTracing) {
+    const { traceId } = getActiveOtelContext();
+    if (traceId) return traceId;
+  }
+  return incomingHeader ?? generateTraceId();
+}
+
+/**
+ * Resolve the effective spanId for this hop.
+ *
+ * Priority order:
+ *  1. Active OpenTelemetry span.
+ *  2. Fresh random hex span ID.
+ */
+function resolveSpanId(enableTracing: boolean): string {
+  if (enableTracing) {
+    const { spanId } = getActiveOtelContext();
+    if (spanId) return spanId;
+  }
+  return generateSpanId();
+}
+
+// ─── Module ───────────────────────────────────────────────────────────────────
+
+const CORE_PROVIDERS: Provider[] = [LokiLoggerService, TraceViewerService, MetricsService];
+const CORE_EXPORTS = [LOKI_LOGGER_OPTIONS, LokiLoggerService, TraceViewerService, MetricsService];
 
 @Module({})
 export class LokiLoggerModule {
@@ -58,51 +105,39 @@ export class LokiLoggerModule {
   // ── apply() ──────────────────────────────────────────────────────
 
   /**
-   * Wire everything in one call. Call after NestFactory.create(), before app.listen().
+   * Wire the full observability stack in one call.
+   * Call after NestFactory.create(), before app.listen().
    *
    * What it sets up:
-   *  1. LokiLoggerService as the global NestJS logger (framework logs go through it)
-   *  2. Trace middleware on every request — creates traceId + spanId, wraps the
-   *     entire call stack in AsyncLocalStorage so all logs within a request share
-   *     the same trace context without any manual wiring
-   *  3. Global interceptor — logs handler entry, exit, duration, and errors with
-   *     full stack traces, all tagged with traceId + spanId + sequence number
-   *
-   * traceId is returned on every response (success AND error) in the x-trace-id
-   * response header. Clients use this to correlate logs when reporting issues.
-   *
-   * @example
-   * // main.ts
-   * const app = await NestFactory.create(AppModule);
-   * LokiLoggerModule.apply(app);
-   * LokiLoggerModule.mountViewer(app);  // optional — call before listen()
-   * await app.listen(3000);
+   *  1. LokiLoggerService as the global NestJS logger.
+   *  2. Trace middleware — creates / continues an OTEL-compatible hex traceId
+   *     and spanId, wraps the entire async call stack in AsyncLocalStorage.
+   *  3. Global interceptor — logs handler entry, exit, duration, and errors.
+   *  4. Prometheus /metrics endpoint (when enableMetrics: true).
    */
   static apply(app: any): void {
     const logger = app.get(LokiLoggerService) as LokiLoggerService;
-    const options = app.get(LOKI_LOGGER_OPTIONS) as LokiLoggerOptions;
+    const metrics = app.get(MetricsService) as MetricsService;
+    const opts = logger.resolvedOptions;
 
-    // 1. Set module-level singleton so @Log() and getLogger() work everywhere
-    //    without constructor injection.
+    // 1. Global logger
     setLoggerRef(logger);
     app.useLogger(logger);
 
-    // 2. Trace middleware — runs before every request handler.
-    //    Reads or creates a traceId, creates a fresh spanId for this hop,
-    //    echoes both back as response headers, then wraps the entire async
-    //    call stack in AsyncLocalStorage so every log/DB/HTTP call in this
-    //    request automatically carries the trace context.
-    const traceHeader = options.traceHeader ?? 'x-loki-trace-id';
-    const parentSpanHeader = options.parentSpanHeader ?? 'x-parent-span-id';
+    const traceHeader = opts.traceHeader;
+    const parentSpanHeader = opts.parentSpanHeader;
+    const appName = opts.serviceName;
+    const env = opts.environment;
 
+    // 2. Trace + metrics middleware
     app.use((req: Req, res: Res, next: NextFn) => {
-      const traceId = (req.headers[traceHeader] as string | undefined) ?? uuidv4();
-      const spanId = uuidv4();
+      const incomingTraceId = req.headers[traceHeader] as string | undefined;
+      const traceId = resolveTraceId(incomingTraceId, opts.enableTracing);
+      const spanId = resolveSpanId(opts.enableTracing);
       const parentSpanId = req.headers[parentSpanHeader] as string | undefined;
       const startTime = Date.now();
 
-      // Echo trace headers so the caller can correlate their own logs,
-      // and downstream services receive the same traceId.
+      // Echo trace headers forward so callers and downstream services can correlate
       res.setHeader(traceHeader, traceId);
       res.setHeader(parentSpanHeader, spanId);
 
@@ -113,12 +148,46 @@ export class LokiLoggerModule {
           : fwd.split(',')[0].trim()
         : (req.socket?.remoteAddress ?? 'unknown');
 
+      // Intercept res.json + res.send to optionally capture the response body.
+      // NestJS routes through res.json for object returns and res.send for strings/buffers.
+      if (opts.logResponseBody) {
+        const captureBody = (raw: unknown): void => {
+          if ((res as any).__responseBody) return; // already captured
+          try {
+            if (typeof raw === 'string') {
+              (res as any).__responseBody = raw.substring(0, 2048);
+            } else if (raw instanceof Buffer) {
+              (res as any).__responseBody = raw.toString('utf8').substring(0, 2048);
+            } else if (raw !== undefined && raw !== null) {
+              (res as any).__responseBody = JSON.stringify(raw).substring(0, 2048);
+            }
+          } catch {
+            /* ignore serialisation errors */
+          }
+        };
+
+        const origJson = (res.json as (body: unknown) => Res).bind(res);
+        res.json = (body: unknown): Res => {
+          captureBody(body);
+          return origJson(body);
+        };
+
+        const origSend = (res.send as (body?: unknown) => Res).bind(res);
+        res.send = (body?: unknown): Res => {
+          captureBody(body);
+          return origSend(body);
+        };
+      }
+
+      // In-flight counter
+      metrics.incInFlight(appName, env);
+
       traceStorage.run(
         {
           traceId,
           spanId,
           parentSpanId,
-          service: options.serviceName,
+          service: appName,
           requestPath: req.path,
           method: req.method,
           startTime,
@@ -130,15 +199,25 @@ export class LokiLoggerModule {
         () => {
           const inMeta: Record<string, unknown> = { userAgent: req.headers['user-agent'], ip };
           if (Object.keys(req.query).length) inMeta.query = req.query;
-          if (options.logRequestBody && (req as any).body) inMeta.body = (req as any).body;
+          if (opts.logRequestBody && (req as any).body) inMeta.body = (req as any).body;
 
           logger.logWithType('info', `→ ${req.method} ${req.path}`, 'http_in', 'HTTP', inMeta);
 
           res.on('finish', () => {
             const duration = Date.now() - startTime;
             const status = res.statusCode;
+            const route = req.route?.path ?? req.path;
+
+            // Prometheus metrics
+            metrics.recordRequest(req.method, route, status, duration, appName, env);
+            metrics.decInFlight(appName, env);
+
+            const outMeta: Record<string, unknown> = { statusCode: status, duration, ip };
+            if (opts.logResponseBody && (res as any).__responseBody) {
+              outMeta.responseBody = (res as any).__responseBody;
+            }
+
             const msg = `← ${req.method} ${req.path} ${status} +${duration}ms`;
-            const outMeta = { statusCode: status, duration };
             if (status >= 500) logger.logWithType('error', msg, 'http_in_res', 'HTTP', outMeta);
             else if (status >= 400) logger.logWithType('warn', msg, 'http_in_res', 'HTTP', outMeta);
             else logger.logWithType('info', msg, 'http_in_res', 'HTTP', outMeta);
@@ -149,8 +228,7 @@ export class LokiLoggerModule {
       );
     });
 
-    // 3. Global interceptor — plain object, no @Injectable(), safe under pnpm isolation.
-    //    Logs handler entry/exit and catches + logs any unhandled errors with stack trace.
+    // 3. Global interceptor
     const interceptor: NestInterceptor = {
       intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
         const name = `${ctx.getClass().name}.${ctx.getHandler().name}`;
@@ -188,20 +266,39 @@ export class LokiLoggerModule {
       },
     };
     app.useGlobalInterceptors(interceptor);
+
+    // 4. Prometheus /metrics endpoint
+    if (opts.enableMetrics) {
+      const rawApp = app.getHttpAdapter().getInstance() as import('express').Application;
+      const metricsPath = '/' + (opts.metricsPath ?? 'metrics').replace(/^\//, '');
+
+      rawApp.get(metricsPath, async (_req: Req, res: Res) => {
+        try {
+          res.set('Content-Type', metrics.getContentType());
+          res.end(await metrics.getMetrics());
+        } catch (err) {
+          res.status(500).end(String(err));
+        }
+      });
+
+      logger.log(`Prometheus metrics ready → ${metricsPath}`, 'LokiLoggerModule');
+    }
+
+    // Log options summary (excluding sensitive fields)
+    logger.log(
+      `Observability ready — service="${appName}" env="${env}" ` +
+        `metrics=${opts.enableMetrics} tracing=${opts.enableTracing} ` +
+        `apiKey=${opts.apiKey ? '✓ (set)' : '✗'}`,
+      'LokiLoggerModule',
+    );
   }
 
   // ── mountViewer() ────────────────────────────────────────────────
 
   /**
    * Mount the trace viewer SPA and REST API on raw Express routes.
-   * Must be called BEFORE app.listen() — NestJS adds its 404 handler
-   * during listen() which would shadow anything registered after.
-   *
-   * Only runs if enableTraceViewer: true in options. Safe to call unconditionally.
-   *
-   * Routes mounted:
-   *   GET /{traceViewerPath}           → Trace viewer SPA
-   *   GET /{traceViewerPath}/api/:id   → JSON span data for a traceId
+   * Must be called BEFORE app.listen().
+   * Only runs if enableTraceViewer: true in options.
    */
   static mountViewer(app: any): void {
     const options = app.get(LOKI_LOGGER_OPTIONS) as LokiLoggerOptions;

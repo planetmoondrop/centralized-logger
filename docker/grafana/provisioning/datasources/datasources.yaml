@@ -1,23 +1,35 @@
 apiVersion: 1
 
 datasources:
-  # ── Loki — primary log store ────────────────────────────────────────
+  # ── Loki — primary log store ───────────────────────────────────────────────
   - name: Loki
     type: loki
+    uid: loki
     access: proxy
     url: http://loki:3100
     isDefault: true
     jsonData:
-      maxLines: 1000
-      # Link traceId values in log lines to Tempo traces
+      maxLines: 5000
+      # ── Loki → Tempo: click any traceId / spanId to open trace ────────────
       derivedFields:
         - name: TraceID
-          matcherRegex: '"traceId":"([^"]+)"'
-          url: '$${__value.raw}'
+          # Matches both OTEL 32-char hex (new default) and UUID-format IDs
+          matcherRegex: '"traceId"\s*:\s*"([a-f0-9]{32}|[a-f0-9\-]{36})"'
+          url: '${__value.raw}'
           datasourceUid: tempo
-          urlDisplayLabel: "View trace in Tempo"
+          urlDisplayLabel: "🔍 Open in Tempo"
+        - name: SpanID
+          matcherRegex: '"spanId"\s*:\s*"([a-f0-9]{16}|[a-f0-9\-]{36})"'
+          url: '${__value.raw}'
+          datasourceUid: tempo
+          urlDisplayLabel: "🔗 Open span in Tempo"
+        - name: TraceJourney
+          # Convenience link to the Trace Journey Explorer dashboard
+          matcherRegex: '"traceId"\s*:\s*"([a-f0-9]{32}|[a-f0-9\-]{36})"'
+          url: '/d/trace-journey?var-traceId=${__value.raw}'
+          urlDisplayLabel: "📋 Full trace journey"
 
-  # ── Tempo — distributed trace store ────────────────────────────────
+  # ── Tempo — distributed trace store ───────────────────────────────────────
   - name: Tempo
     type: tempo
     uid: tempo
@@ -29,11 +41,48 @@ datasources:
         datasourceUid: prometheus
       nodeGraph:
         enabled: true
-      # Link Tempo trace IDs back to Loki logs
+      search:
+        hide: false
+      lokiSearch:
+        datasourceUid: loki
+      # ── Tempo → Loki: from any span jump to all logs in that time window ──
       tracesToLogsV2:
         datasourceUid: loki
-        spanStartTimeShift: "-1m"
-        spanEndTimeShift: "1m"
+        spanStartTimeShift: '-2m'
+        spanEndTimeShift: '2m'
         filterByTraceID: true
+        filterBySpanID: false
         customQuery: true
-        query: '{app=~".+"} | json | traceId = "$${__trace.traceId}"'
+        # Fetches all logs for this traceId across all services
+        query: '{app=~".+"} | json | traceId = "${__trace.traceId}"'
+      tracesToLogs:
+        datasourceUid: loki
+        spanStartTimeShift: '-1m'
+        spanEndTimeShift: '1m'
+        filterByTraceID: true
+        filterBySpanID: true
+      # ── Tempo → Prometheus: service map ───────────────────────────────────
+      tracesToMetrics:
+        datasourceUid: prometheus
+        spanStartTimeShift: '-2m'
+        spanEndTimeShift: '2m'
+        tags:
+          - key: service.name
+            value: app
+        queries:
+          - name: 'Request rate'
+            query: 'rate(http_requests_total{app="$__tags"}[5m])'
+
+  # ── Prometheus — metrics store ─────────────────────────────────────────────
+  - name: Prometheus
+    type: prometheus
+    uid: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: false
+    jsonData:
+      httpMethod: POST
+      exemplarTraceIdDestinations:
+        # Clicking a Prometheus exemplar opens the linked trace in Tempo
+        - datasourceUid: tempo
+          name: traceId
