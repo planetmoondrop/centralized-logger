@@ -55,11 +55,6 @@
   "peerDependencies": {
     "@nestjs/common": "^9.0.0 || ^10.0.0",
     "@nestjs/core": "^9.0.0 || ^10.0.0",
-    "@opentelemetry/auto-instrumentations-node": ">=0.40.0",
-    "@opentelemetry/exporter-trace-otlp-http": ">=0.45.0",
-    "@opentelemetry/resources": ">=1.0.0",
-    "@opentelemetry/sdk-node": ">=0.45.0",
-    "@opentelemetry/semantic-conventions": ">=1.0.0",
     "reflect-metadata": "^0.1.13",
     "rxjs": "^7.0.0",
     "typeorm": "^0.3.28"
@@ -70,26 +65,16 @@
     },
     "typeorm": {
       "optional": true
-    },
-    "@opentelemetry/sdk-node": {
-      "optional": true
-    },
-    "@opentelemetry/exporter-trace-otlp-http": {
-      "optional": true
-    },
-    "@opentelemetry/auto-instrumentations-node": {
-      "optional": true
-    },
-    "@opentelemetry/resources": {
-      "optional": true
-    },
-    "@opentelemetry/semantic-conventions": {
-      "optional": true
     }
   },
   "dependencies": {
     "@nestjs/axios": "^3.0.2",
     "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/sdk-node": "^0.52.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.52.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.47.1",
+    "@opentelemetry/resources": "^1.25.1",
+    "@opentelemetry/semantic-conventions": "^1.25.1",
     "prom-client": "^15.1.3",
     "uuid": "^9.0.1",
     "winston": "^3.11.0"

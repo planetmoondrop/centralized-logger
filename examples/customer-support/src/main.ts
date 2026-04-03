@@ -1,3 +1,4 @@
+import './tracing'; // MUST be first — installs OTEL hooks before any other module loads
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';

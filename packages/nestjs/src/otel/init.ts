@@ -93,12 +93,7 @@ export function initObservability(options: ObservabilityOptions): void {
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(
-      `[Moondrop Observability] OpenTelemetry packages not found (${msg}). ` +
-        `Install @opentelemetry/sdk-node, @opentelemetry/exporter-trace-otlp-http, ` +
-        `@opentelemetry/auto-instrumentations-node, @opentelemetry/resources, ` +
-        `and @opentelemetry/semantic-conventions to enable distributed tracing.`,
-    );
+    console.warn(`[Moondrop Observability] Failed to start OpenTelemetry SDK: ${msg}`);
   }
 }
 

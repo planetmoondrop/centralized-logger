@@ -132,12 +132,15 @@ services:
     environment:
       NODE_ENV: development
       LOKI_HOST: http://loki:3100
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     labels:
       app: auth-service
       env: development
     depends_on:
       loki:
         condition: service_healthy
+      tempo:
+        condition: service_started
     networks:
       - moondrop
 
@@ -153,12 +156,15 @@ services:
     environment:
       NODE_ENV: development
       LOKI_HOST: http://loki:3100
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     labels:
       app: customer-support
       env: development
     depends_on:
       loki:
         condition: service_healthy
+      tempo:
+        condition: service_started
     networks:
       - moondrop
 
@@ -177,12 +183,15 @@ services:
       AUTH_SERVICE_URL: http://auth-service:3001
       SUPPORT_SERVICE_URL: http://customer-support:3002
       CORS_ORIGINS: 'http://localhost:5173,http://localhost:3000'
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4318
     labels:
       app: backend
       env: development
     depends_on:
       loki:
         condition: service_healthy
+      tempo:
+        condition: service_started
       auth-service:
         condition: service_started
       customer-support:
