@@ -1,9 +1,9 @@
 {
-  "title": "NestJS Microservices — Service Overview",
+  "title": "Microservices Overview",
   "uid": "nestjs-loki-overview",
-  "description": "Live health and performance overview across all NestJS microservices.",
+  "description": "Cross-service request rates, error rates, DB volume, and outgoing calls. For deep per-request logs use 'Centralized Logs'. For system metrics use 'Node.js System Health'.",
   "schemaVersion": 38,
-  "version": 2,
+  "version": 3,
   "refresh": "30s",
   "time": { "from": "now-6h", "to": "now" },
   "tags": ["nestjs", "loki", "microservices", "overview"],

@@ -12,6 +12,7 @@ class MinimalLokiTransport extends TransportStream {
   private readonly lokiUrl: URL;
   private readonly labels: Record<string, string>;
   private readonly maxRetries: number;
+  private readonly apiKey: string | undefined;
   private buffer: Array<[string, string]> = [];
   private flushTimer: NodeJS.Timeout | null = null;
 
@@ -20,11 +21,13 @@ class MinimalLokiTransport extends TransportStream {
     labels: Record<string, string>;
     intervalMs?: number;
     maxRetries?: number;
+    apiKey?: string;
   }) {
     super();
     this.lokiUrl = new URL('/loki/api/v1/push', opts.host);
     this.labels = opts.labels;
     this.maxRetries = opts.maxRetries ?? 3;
+    this.apiKey = opts.apiKey;
 
     const intervalMs = opts.intervalMs ?? 5000;
     this.flushTimer = setInterval(() => this.flush(), intervalMs);
@@ -82,16 +85,19 @@ class MinimalLokiTransport extends TransportStream {
     };
 
     try {
+      const headers: Record<string, string | number> = {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(body),
+      };
+      if (this.apiKey) headers['X-Scope-OrgID'] = this.apiKey;
+
       const req = lib.request(
         {
           hostname: this.lokiUrl.hostname,
           port: this.lokiUrl.port || (isHttps ? 443 : 80),
           path: this.lokiUrl.pathname,
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(body),
-          },
+          headers,
           timeout: 5000,
         },
         (res) => {
@@ -124,7 +130,7 @@ class MinimalLokiTransport extends TransportStream {
 @Injectable()
 export class LokiLoggerService implements LoggerService, OnModuleDestroy {
   private readonly logger: winston.Logger;
-  readonly resolvedOptions: Required<LokiLoggerOptions>;
+  readonly resolvedOptions: Required<Omit<LokiLoggerOptions, 'apiKey'>> & { apiKey: string | undefined };
 
   constructor(@Inject(LOKI_LOGGER_OPTIONS) options: LokiLoggerOptions) {
     this.resolvedOptions = {
@@ -138,11 +144,17 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
       lokiBatchInterval: 5000,
       lokiRetries: 3,
       logRequestBody: false,
+      logResponseBody: false,
       enableTraceViewer: false,
       traceViewerPath: '/_trace',
       traceViewerServices: options.serviceName,
+      enableMetrics: false,
+      metricsPath: '/metrics',
+      enableTracing: false,
+      otlpEndpoint: 'http://localhost:4318',
+      apiKey: undefined,
       ...options,
-    };
+    } as Required<Omit<LokiLoggerOptions, 'apiKey'>> & { apiKey: string | undefined };
 
     const opts = this.resolvedOptions;
     const transports: winston.transport[] = [];
@@ -196,6 +208,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
         },
         intervalMs: opts.lokiBatchInterval,
         maxRetries: opts.lokiRetries,
+        apiKey: opts.apiKey,
       }),
     );
 
@@ -286,6 +299,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
         service: store.service,
         path: store.requestPath,
         method: store.method,
+        ...(store.ip && { ip: store.ip }),
         ...(store.userId && { userId: store.userId }),
         sequence,
       }),

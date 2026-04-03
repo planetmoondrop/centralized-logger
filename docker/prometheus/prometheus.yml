@@ -1,0 +1,74 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+  external_labels:
+    monitor: 'moondrop-observability'
+
+# ── Alert rules (optional — add your .rules files here) ────────────────────────
+# rule_files:
+#   - /etc/prometheus/rules/*.rules
+
+# ── Scrape targets ─────────────────────────────────────────────────────────────
+scrape_configs:
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # ── NestJS / Node.js services ─────────────────────────────────────────────
+  # Each service that calls LokiLoggerModule.register({ enableMetrics: true })
+  # exposes GET /metrics in Prometheus text format.
+  #
+  # Add your services here. For Docker Compose deployments use the service name
+  # as the hostname (e.g. auth-service:3001).  For Kubernetes use the pod FQDN.
+  #
+  # Template:
+  #   - targets: ['<service-hostname>:<port>']
+  #     labels:
+  #       app: '<service-name>'
+  #       env: 'production'
+  #
+  - job_name: 'nestjs-services'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      # ── Example services (update to match your actual services) ──────────
+      - targets: ['auth-service:3001']
+        labels:
+          app: 'auth-service'
+          env: 'development'
+      - targets: ['customer-support:3002']
+        labels:
+          app: 'customer-support'
+          env: 'development'
+      - targets: ['backend:3003']
+        labels:
+          app: 'backend'
+          env: 'development'
+    relabel_configs:
+      # Preserve the 'app' label from static_configs as a Prometheus label
+      - source_labels: [app]
+        target_label: app
+      - source_labels: [env]
+        target_label: env
+
+  # ── Docker auto-discovery (alternative to static_configs) ─────────────────
+  # Uncomment to scrape all Docker containers that expose a /metrics endpoint.
+  # Requires the Prometheus container to have access to the Docker socket.
+  #
+  # - job_name: 'docker-autodiscovery'
+  #   docker_sd_configs:
+  #     - host: unix:///var/run/docker.sock
+  #       refresh_interval: 30s
+  #   relabel_configs:
+  #     - source_labels: [__meta_docker_container_label_app]
+  #       target_label: app
+  #       regex: (.+)
+  #     - source_labels: [__meta_docker_container_label_env]
+  #       target_label: env
+  #     - source_labels: [__meta_docker_port_private]
+  #       target_label: __address__
+  #       replacement: '${1}'
+  #   metrics_path: '/metrics'

@@ -3,13 +3,18 @@
  * Available anywhere in the call stack without dependency injection.
  */
 export interface TraceContext {
-  /** UUID that identifies this request uniquely across ALL microservices. */
+  /**
+   * 32-character lowercase hex string that identifies this request across ALL
+   * microservices (OpenTelemetry / Tempo compatible format).
+   * When initObservability() is called, this equals the active OTEL span's traceId
+   * so Loki logs and Tempo spans share the same identifier.
+   */
   traceId: string;
 
   /**
-   * UUID that identifies THIS specific HTTP span.
-   * Each service that handles the request creates its own spanId.
-   * Multiple spans can share the same traceId (cross-service journey).
+   * 16-character lowercase hex string that identifies THIS specific HTTP span
+   * (OpenTelemetry / Tempo compatible).
+   * Each service hop creates its own spanId; multiple spans share the same traceId.
    */
   spanId: string;
 

@@ -3,7 +3,7 @@
   "uid": "log-search",
   "description": "Search across all services by any field: traceId, userId, email, name, phone number, UUID, or any value that appears in your logs.",
   "schemaVersion": 38,
-  "version": 1,
+  "version": 2,
   "refresh": false,
   "time": { "from": "now-30d", "to": "now" },
   "tags": ["nestjs", "loki", "search"],
@@ -14,7 +14,7 @@
       {
         "name": "search",
         "label": "Search term",
-        "description": "Enter any value: email, userId, UUID, phone number, name, etc.",
+        "description": "Enter any value: email, userId, UUID, phone number, name, traceId, etc.",
         "type": "textbox",
         "current": { "value": "" },
         "hide": 0
@@ -23,10 +23,10 @@
         "name": "level",
         "label": "Level",
         "type": "custom",
-        "query": "all,error,warn,info,debug",
-        "current": { "value": "all", "text": "all" },
+        "query": ".+,error,warn,info,debug",
+        "current": { "value": ".+", "text": "all" },
         "options": [
-          { "text": "all",   "value": "all",   "selected": true },
+          { "text": "all",   "value": ".+",    "selected": true },
           { "text": "error", "value": "error" },
           { "text": "warn",  "value": "warn"  },
           { "text": "info",  "value": "info"  },
@@ -38,11 +38,12 @@
         "name": "logType",
         "label": "Log type",
         "type": "custom",
-        "query": "all,http_in,http_in_res,http_out,db,service,event,interceptor",
-        "current": { "value": "all", "text": "all" },
+        "query": ".+,http_in,http_in_res,http_out,db,service,event,interceptor",
+        "current": { "value": ".+", "text": "all" },
         "options": [
-          { "text": "all",         "value": "all"         , "selected": true },
+          { "text": "all",         "value": ".+",          "selected": true },
           { "text": "http_in",     "value": "http_in"     },
+          { "text": "http_in_res", "value": "http_in_res" },
           { "text": "http_out",    "value": "http_out"    },
           { "text": "db",          "value": "db"          },
           { "text": "service",     "value": "service"     },
@@ -54,9 +55,15 @@
       {
         "name": "app",
         "label": "Service",
-        "type": "textbox",
-        "description": "Filter by service name (regex supported, leave .+ for all)",
-        "current": { "value": ".+" },
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({app=~\".+\"}, app)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
         "hide": 0
       }
     ]
@@ -71,7 +78,7 @@
       "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
       "options": {
         "mode": "markdown",
-        "content": "## Universal Search\nSearch your logs by **any field value** — email address, userId, UUID, name, phone number, or any string that appears anywhere in a log line.\n- Results are clickable — any `traceId` in a log line has a **\"Open in Tempo ↗\"** link to jump to the full trace waterfall.\n- Use the **Level** and **Log type** dropdowns to narrow results.\n- For a deep trace journey, copy the `traceId` and open the **Trace Journey Explorer** dashboard."
+        "content": "## Universal Log Search\nSearch your logs by **any field value** — email, userId, UUID, phone number, traceId, or any string that appears anywhere in a log line.\n- Results are clickable — any `traceId` has a **\"🔍 Open in Tempo\"** link to open the full trace waterfall.\n- Use **Level** and **Log type** dropdowns to narrow results.\n- Copy a `traceId` and open **Trace Journey Explorer** for the full cross-service request journey."
       },
       "transparent": true
     },
@@ -96,7 +103,7 @@
       },
       "targets": [{
         "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "sum(count_over_time({app=~\"$app\"} |~ \"$search\" [30d]))",
+        "expr": "sum(count_over_time({app=~\"$app\"} | json | level =~ \"$level\" | logType =~ \"$logType\" |~ \"$search\" [30d]))",
         "instant": true,
         "refId": "A"
       }]
@@ -122,7 +129,7 @@
       },
       "targets": [{
         "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "count(sum by(app) (count_over_time({app=~\"$app\"} |~ \"$search\" [30d])))",
+        "expr": "count(sum by(app) (count_over_time({app=~\"$app\"} | json | level =~ \"$level\" | logType =~ \"$logType\" |~ \"$search\" [30d])))",
         "instant": true,
         "refId": "A"
       }]
@@ -135,12 +142,18 @@
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 3 },
       "datasource": { "type": "loki", "uid": "loki" },
       "fieldConfig": {
-        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 2 } }
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        }
       },
-      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
       "targets": [{
         "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "sum by(app) (count_over_time({app=~\"$app\"} |~ \"$search\" [$__interval]))",
+        "expr": "sum by(app) (count_over_time({app=~\"$app\"} | json | level =~ \"$level\" | logType =~ \"$logType\" |~ \"$search\" [$__interval]))",
         "legendFormat": "{{app}}",
         "refId": "A"
       }]
@@ -149,8 +162,8 @@
     {
       "id": 20,
       "type": "logs",
-      "title": "Matching Log Lines  (click a traceId to open full journey in Tempo)",
-      "gridPos": { "h": 24, "w": 24, "x": 0, "y": 11 },
+      "title": "Matching Log Lines  (expand any row to see all fields · click TraceID to open in Tempo)",
+      "gridPos": { "h": 28, "w": 24, "x": 0, "y": 11 },
       "datasource": { "type": "loki", "uid": "loki" },
       "options": {
         "showTime": true,
@@ -165,8 +178,8 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$app\", level=~\"$level\"} | json | logType =~ \"$logType\" |~ \"$search\"",
-          "refId": "level-type-search"
+          "expr": "{app=~\"$app\"} | json | level =~ \"$level\" | logType =~ \"$logType\" |~ \"$search\"",
+          "refId": "A"
         }
       ]
     }
