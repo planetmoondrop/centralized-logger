@@ -98,6 +98,25 @@ services:
       tempo:
         condition: service_started
 
+  # ── Archive exporter — twice-daily gzip archives of all Loki logs ─────────
+  archive-exporter:
+    build:
+      context: ./archive-exporter
+      dockerfile: Dockerfile
+    container_name: archive-exporter
+    restart: unless-stopped
+    environment:
+      LOKI_HOST: http://loki:3100
+      ARCHIVE_DIR: /archive
+      LOG_LIMIT: '5000'
+    volumes:
+      - ./archive/logs:/archive
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - moondrop-logger
+
 volumes:
   loki-data:
   tempo-data:

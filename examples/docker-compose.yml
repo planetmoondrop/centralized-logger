@@ -218,6 +218,29 @@ services:
     networks:
       - moondrop
 
+  # ── Archive exporter — twice-daily gzip archives of all Loki logs ─────────
+  # Runs two cron jobs per day (UTC):
+  #   00:05 — exports yesterday's PM window (12:00–24:00) as YYYY-MM-DD-pm.jsonl.gz
+  #   12:05 — exports today's    AM window  (00:00–12:00) as YYYY-MM-DD-am.jsonl.gz
+  # Archives land in ./docker/archive/logs/ on the host.
+  archive-exporter:
+    build:
+      context: ../docker/archive-exporter
+      dockerfile: Dockerfile
+    container_name: archive-exporter
+    restart: unless-stopped
+    environment:
+      LOKI_HOST: http://loki:3100
+      ARCHIVE_DIR: /archive
+      LOG_LIMIT: '5000'
+    volumes:
+      - ../docker/archive/logs:/archive
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - moondrop
+
 volumes:
   loki-data:
   tempo-data:
