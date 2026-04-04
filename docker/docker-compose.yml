@@ -36,9 +36,9 @@ services:
     restart: unless-stopped
     command: ['-config.file=/etc/tempo.yaml']
     ports:
-      - '3200:3200'   # Tempo HTTP API  (Grafana datasource)
-      - '4317:4317'   # OTLP gRPC receiver
-      - '4318:4318'   # OTLP HTTP receiver  ← services send spans here
+      - '3200:3200' # Tempo HTTP API  (Grafana datasource)
+      - '4317:4317' # OTLP gRPC receiver
+      - '4318:4318' # OTLP HTTP receiver  ← services send spans here
     volumes:
       - ./tempo/tempo-config.yaml:/etc/tempo.yaml:ro
       - tempo-data:/tmp/tempo
@@ -63,7 +63,8 @@ services:
       - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     healthcheck:
-      test: ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:9090/-/healthy || exit 1']
+      test:
+        ['CMD-SHELL', 'wget --quiet --tries=1 --spider http://localhost:9090/-/healthy || exit 1']
       interval: 15s
       timeout: 5s
       retries: 5
@@ -97,6 +98,25 @@ services:
         condition: service_healthy
       tempo:
         condition: service_started
+
+  # ── Archive exporter — twice-daily gzip archives of all Loki logs ─────────
+  archive-exporter:
+    build:
+      context: ./archive-exporter
+      dockerfile: Dockerfile
+    container_name: archive-exporter
+    restart: unless-stopped
+    environment:
+      LOKI_HOST: http://loki:3100
+      ARCHIVE_DIR: /archive
+      LOG_LIMIT: '5000'
+    volumes:
+      - ./archive/logs:/archive
+    depends_on:
+      loki:
+        condition: service_healthy
+    networks:
+      - moondrop-logger
 
 volumes:
   loki-data:
