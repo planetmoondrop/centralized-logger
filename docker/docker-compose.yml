@@ -1,7 +1,7 @@
 version: '3.9'
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Moondrop Observability Stack
+# Planetmoondrop Observability Stack
 #   loki        → Log aggregation              http://localhost:3100
 #   tempo       → Distributed trace storage    http://localhost:3200
 #   prometheus  → Metrics collection           http://localhost:9090
@@ -27,7 +27,7 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - moondrop-logger
+      - planetmoondrop-logger
 
   # ── Grafana Tempo — distributed trace store ─────────────────────────────────
   tempo:
@@ -43,7 +43,7 @@ services:
       - ./tempo/tempo-config.yaml:/etc/tempo.yaml:ro
       - tempo-data:/tmp/tempo
     networks:
-      - moondrop-logger
+      - planetmoondrop-logger
 
   # ── Prometheus — metrics scraper ────────────────────────────────────────────
   prometheus:
@@ -69,7 +69,7 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - moondrop-logger
+      - planetmoondrop-logger
 
   # ── Grafana UI ──────────────────────────────────────────────────────────────
   grafana:
@@ -89,7 +89,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     networks:
-      - moondrop-logger
+      - planetmoondrop-logger
     depends_on:
       loki:
         condition: service_healthy
@@ -115,7 +115,7 @@ services:
       loki:
         condition: service_healthy
     networks:
-      - moondrop-logger
+      - planetmoondrop-logger
 
 volumes:
   loki-data:
@@ -124,5 +124,5 @@ volumes:
   grafana-data:
 
 networks:
-  moondrop-logger:
+  planetmoondrop-logger:
     driver: bridge

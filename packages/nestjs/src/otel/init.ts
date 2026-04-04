@@ -5,7 +5,7 @@
  *
  * @example
  * // main.ts  ← must be the first imports
- * import { initObservability } from '@moondrop/centralized-logger';
+ * import { initObservability } from '@planetmoondrop/centralized-logger';
  * initObservability({ serviceName: 'auth-service', otlpEndpoint: 'http://tempo:4318' });
  *
  * // … rest of NestJS bootstrap
@@ -89,11 +89,11 @@ export function initObservability(options: ObservabilityOptions): void {
     process.once('SIGINT', shutdown);
 
     console.log(
-      `[Moondrop Observability] OpenTelemetry SDK started — exporting traces to ${endpoint}`,
+      `[Planetmoondrop Observability] OpenTelemetry SDK started — exporting traces to ${endpoint}`,
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.warn(`[Moondrop Observability] Failed to start OpenTelemetry SDK: ${msg}`);
+    console.warn(`[Planetmoondrop Observability] Failed to start OpenTelemetry SDK: ${msg}`);
   }
 }
 

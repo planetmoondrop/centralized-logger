@@ -1,5 +1,5 @@
 {
-  "name": "@moondrop/logger-client",
+  "name": "@planetmoondrop/logger-client",
   "version": "1.0.0",
   "description": "Axios interceptor to manage x-loki-trace-id header",
   "main": "dist/index.js",
@@ -18,9 +18,9 @@
     "trace-id",
     "traceId",
     "x-loki-trace-id",
-    "moondrop interceptor",
+    "planetmoondrop interceptor",
     "axios interceptor",
-    "moondrop",
+    "planetmoondrop",
     "logger-client",
     "logger",
     "observability",
@@ -37,7 +37,7 @@
     "nestjs-logger-client-axios-interceptor-loki-trace-id-header-x-loki-trace-id",
     "nestjs-logger-client-axios-interceptor-loki-trace-id-header-x-loki-trace-id"
   ],
-  "author": "Planet Moondrop",
+  "author": "Planetmoondrop",
   "license": "MIT",
   "publishConfig": {
     "access": "public"

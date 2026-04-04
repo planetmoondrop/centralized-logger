@@ -133,7 +133,7 @@ export default function DashboardPage() {
         }}
       >
         <div style={{ fontSize: 15, fontWeight: 700 }}>
-          <span style={{ color: 'var(--blue)' }}>moondrop</span> · Logger Demo — Customer Support
+          <span style={{ color: 'var(--blue)' }}>planetmoondrop</span> · Logger Demo — Customer Support
           Portal
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

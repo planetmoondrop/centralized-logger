@@ -12,7 +12,7 @@ import { LokiLoggerOptions, LOKI_LOGGER_OPTIONS } from '../interfaces';
  * LokiHttpService
  *
  * Drop-in replacement for @nestjs/axios HttpService that automatically:
- *  - Injects x-loki-trace-id on every outgoing request (cross-service trace propagation)
+ *  - Injects x-trace-id on every outgoing request (cross-service trace propagation)
  *  - Injects x-parent-span-id so the downstream service knows who called it
  *  - Logs outgoing requests (logType: 'http_out') so they appear in the trace viewer
  *    under the correct span
@@ -30,7 +30,7 @@ export class LokiHttpService {
     private readonly http: HttpService,
     private readonly logger: LokiLoggerService,
     @Inject(LOKI_LOGGER_OPTIONS) private readonly options: LokiLoggerOptions,
-  ) {}
+  ) { }
 
   get<T = unknown>(url: string, config?: AxiosRequestConfig): Observable<AxiosResponse<T>> {
     return this.request<T>('GET', url, undefined, config);
@@ -110,7 +110,7 @@ export class LokiHttpService {
     const trace = getCurrentTrace();
     if (!trace) return config ?? {};
 
-    const traceHeader = this.options.traceHeader ?? 'x-loki-trace-id';
+    const traceHeader = this.options.traceHeader ?? 'x-trace-id';
     const parentSpanHeader = this.options.parentSpanHeader ?? 'x-parent-span-id';
 
     return {

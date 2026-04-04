@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Moondrop Archive Import — re-ingest a gzip archive back into Loki
+ * Planetmoondrop Archive Import — re-ingest a gzip archive back into Loki
  *
  * This script lives in docker/archive-exporter/ alongside the exporter.
  * Run it from your project root whenever you want to load an archive
@@ -52,9 +52,9 @@ const args = parseArgs(process.argv.slice(2));
 
 if (args.help || !args.file) {
   console.log(`
-  Moondrop Archive Import
+  Planetmoondrop Archive Import
 
-  Re-ingests a Moondrop gzip archive (.jsonl.gz) into Loki with archive labels,
+  Re-ingests a Planetmoondrop gzip archive (.jsonl.gz) into Loki with archive labels,
   so you can query old logs in Grafana like any other log stream.
 
   Usage:

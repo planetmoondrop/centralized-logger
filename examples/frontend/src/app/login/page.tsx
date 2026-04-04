@@ -35,7 +35,7 @@ export default function LoginPage() {
 
         {/* Header */}
         <div style={{ padding:'12px 16px', borderBottom:'1px solid var(--border)', fontSize:14, fontWeight:700, color:'var(--text)' }}>
-          <span style={{ color:'var(--blue)' }}>moondrop</span> · Customer Support Portal
+          <span style={{ color:'var(--blue)' }}>planetmoondrop</span> · Customer Support Portal
         </div>
 
         {/* Credentials hint */}

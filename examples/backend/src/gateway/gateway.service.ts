@@ -1,6 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
-import { LokiHttpService, LokiLoggerService, Log } from '@moondrop/centralized-logger';
+import { LokiHttpService, LokiLoggerService, Log } from '@planetmoondrop/centralized-logger';
 
 const AUTH_URL    = `${process.env['AUTH_SERVICE_URL']    ?? 'http://localhost:3001'}/api/auth`;
 const SUPPORT_URL = `${process.env['SUPPORT_SERVICE_URL'] ?? 'http://localhost:3002'}/api/tickets`;

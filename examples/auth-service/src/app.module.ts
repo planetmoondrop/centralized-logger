@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { LokiLoggerModule } from '@moondrop/centralized-logger';
+import { LokiLoggerModule } from '@planetmoondrop/centralized-logger';
 import { AuthModule } from './auth/auth.module';
 
 @Module({

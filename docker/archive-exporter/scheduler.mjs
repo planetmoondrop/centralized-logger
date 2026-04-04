@@ -72,5 +72,5 @@ function schedule() {
   }, ms);
 }
 
-console.log('[scheduler] Moondrop archive exporter (Node scheduler, UTC 00:05 & 12:05)');
+console.log('[scheduler] Planetmoondrop archive exporter (Node scheduler, UTC 00:05 & 12:05)');
 schedule();
