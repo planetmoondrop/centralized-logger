@@ -10,6 +10,18 @@ Centralized Grafana Loki logging for NestJS microservices with automatic distrib
 
 ## Installation
 
+**Recommended:** from your NestJS project root, run the init wizard. It adds `@planetmoondrop/centralized-logger`, `winston`, and `uuid` when missing, inserts `LokiLoggerModule.register()` into `app.module.ts` when the file looks like a standard Nest `imports: [ … ]` module (skips if `register` / `registerAsync` is already there), optionally installs OpenTelemetry and patches `main.ts` for tracing.
+
+```bash
+npx -p @planetmoondrop/centralized-logger planetmoondrop init
+```
+
+`npx -p …` only uses that package to run the CLI; the wizard runs `pnpm add` / `npm install` / `yarn add` so the library ends up in **your** `package.json`.
+
+If the package is already a dependency, you can run `npx planetmoondrop init` instead. **`npx planetmoondrop init` by itself (no `-p`) fails with 404** — there is no separate `planetmoondrop` package on npm, only the `planetmoondrop` binary inside `@planetmoondrop/centralized-logger`.
+
+### Manual install
+
 ```bash
 npm install @planetmoondrop/centralized-logger winston uuid
 # or
