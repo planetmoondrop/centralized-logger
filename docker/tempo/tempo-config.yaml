@@ -4,7 +4,7 @@ server:
   http_listen_port: 3200
   log_level: warn
 
-# ── Distributor ───────────────────────────────────────────────────────
+# ── Distributor ───────────────────────────────────────────────────────────────
 distributor:
   receivers:
     otlp:
@@ -14,19 +14,26 @@ distributor:
         http:
           endpoint: 0.0.0.0:4318
 
-# ── Ingester ─────────────────────────────────────────────────────────
+# ── Ingester ──────────────────────────────────────────────────────────────────
 ingester:
-  max_block_duration: 5m
-  trace_idle_period: 10s
+  # Flush blocks every 30m so recent traces appear in search quickly
+  max_block_duration: 30m
+  trace_idle_period: 30s
   flush_check_period: 10s
 
-# ── Compactor ─────────────────────────────────────────────────────────
+# ── Compactor ─────────────────────────────────────────────────────────────────
 compactor:
+  compaction:
+    # Merge small blocks every hour to keep query performance high
+    compaction_window: 1h
+    max_compaction_objects: 6000000
+    block_retention: 720h    # 30 days — matches Loki retention window
+    compacted_block_retention: 1h
   ring:
     kvstore:
       store: memberlist
 
-# ── Storage ───────────────────────────────────────────────────────────
+# ── Storage ───────────────────────────────────────────────────────────────────
 storage:
   trace:
     backend: local
@@ -38,12 +45,14 @@ storage:
       max_workers: 100
       queue_depth: 10000
 
-# ── Retention (moved here in Tempo 2.x) ──────────────────────────────
+# ── Overrides ─────────────────────────────────────────────────────────────────
+# Search is enabled by default in Tempo 2.x for the local backend — no explicit
+# block needed. max_search_duration is configured per-tenant under overrides.
 overrides:
   defaults:
     ingestion:
-      max_traces_per_user: 10000
+      max_traces_per_user: 100000
     global:
-      max_bytes_per_trace: 5000000
+      max_bytes_per_trace: 10000000
     compaction:
-      block_retention: 48h # How long to keep traces
+      block_retention: 720h   # 30 days

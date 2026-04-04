@@ -31,7 +31,7 @@ export class LokiTraceMiddleware implements NestMiddleware {
   ) {}
 
   use(req: Request, res: Response, next: NextFunction): void {
-    const traceHeader = this.options.traceHeader ?? 'x-trace-id';
+    const traceHeader = this.options.traceHeader ?? 'x-loki-trace-id';
     const parentSpanHeader = this.options.parentSpanHeader ?? 'x-parent-span-id';
 
     // Propagate or create traceId — this is the cross-service thread
@@ -43,7 +43,7 @@ export class LokiTraceMiddleware implements NestMiddleware {
 
     // Echo headers so downstream callers can propagate the same trace
     res.setHeader(traceHeader, traceId);
-    res.setHeader('x-span-id', spanId);
+    res.setHeader(parentSpanHeader, spanId);
 
     const startTime = Date.now();
 
