@@ -1,7 +1,7 @@
 # Examples
 
 Three NestJS backends + one Vite frontend that exercise the full
-`moondrop-centralized-logger` stack end-to-end.
+`@moondrop/centralized-logger` stack end-to-end.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -47,24 +47,24 @@ docker compose up --build
 First run takes a few minutes while Docker builds all four app images.
 Subsequent runs are fast — layers are cached unless source files change.
 
-| Service | URL |
-|---------|-----|
-| Frontend | http://localhost:5173 |
+| Service           | URL                   |
+| ----------------- | --------------------- |
+| Frontend          | http://localhost:5173 |
 | Backend (gateway) | http://localhost:3003 |
-| Auth service | http://localhost:3001 |
-| Customer support | http://localhost:3002 |
-| Grafana | http://localhost:3000 |
-| Loki | http://localhost:3100 |
-| Tempo | http://localhost:3200 |
+| Auth service      | http://localhost:3001 |
+| Customer support  | http://localhost:3002 |
+| Grafana           | http://localhost:3000 |
+| Loki              | http://localhost:3100 |
+| Tempo             | http://localhost:3200 |
 
 Grafana opens with anonymous admin access — no login required.
 
 ## Demo credentials
 
-| Email | Password | Role |
-|-------|----------|------|
-| admin@example.com | password123 | admin |
-| agent@example.com | password456 | agent |
+| Email                | Password    | Role     |
+| -------------------- | ----------- | -------- |
+| admin@example.com    | password123 | admin    |
+| agent@example.com    | password456 | agent    |
 | customer@example.com | password789 | customer |
 
 ## Testing the trace journey
@@ -98,7 +98,7 @@ If you want to run the services directly with Node for faster iteration:
 ```bash
 # From repo root — build the packages once
 pnpm install
-pnpm --filter moondrop-centralized-logger build
+pnpm --filter @moondrop/centralized-logger build
 pnpm --filter @moondrop/logger-client build
 
 # Install each example's deps (uses file: references to local dist)

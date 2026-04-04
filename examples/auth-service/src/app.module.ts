@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { LokiLoggerModule } from 'moondrop-centralized-logger';
+import { LokiLoggerModule } from '@moondrop/centralized-logger';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
     LokiLoggerModule.register({
-      serviceName: 'auth-servicess',
+      serviceName: 'auth-service',
       lokiHost: process.env['LOKI_HOST'] ?? 'http://localhost:3100',
       logLevel: 'debug',
       consoleOutput: true,

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { LokiLoggerService, Log } from 'moondrop-centralized-logger';
+import { LokiLoggerService, Log } from '@moondrop/centralized-logger';
 import { v4 as uuidv4 } from 'uuid';
 
 export type TicketStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
@@ -53,7 +53,7 @@ export class TicketsService {
     },
   ];
 
-  constructor(private readonly logger: LokiLoggerService) {}
+  constructor(private readonly logger: LokiLoggerService) { }
 
   @Log()
   findAll(userId?: string): Ticket[] {

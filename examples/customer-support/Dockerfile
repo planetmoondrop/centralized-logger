@@ -65,7 +65,7 @@ COPY --from=builder /app/examples/customer-support/dist ./dist
 
 # Copy package.json (optional but good)
 COPY --from=builder /app/examples/customer-support/package.json ./package.json
-COPY --from=builder /app/packages/nestjs ./node_modules/moondrop-centralized-logger
+COPY --from=builder /app/packages/nestjs ./node_modules/@moondrop/centralized-logger
 
 # Permissions
 RUN chown -R appuser:nodejs /app
