@@ -1,8 +1,8 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { firstValueFrom } from 'rxjs';
-import { LokiHttpService, LokiLoggerService, Log } from 'moondrop-centralized-logger';
+import { LokiHttpService, LokiLoggerService, Log } from '@moondrop/centralized-logger';
 
-const AUTH_URL    = `${process.env['AUTH_SERVICE_URL']    ?? 'http://localhost:3001'}/api/auth`;
+const AUTH_URL = `${process.env['AUTH_SERVICE_URL'] ?? 'http://localhost:3001'}/api/auth`;
 const SUPPORT_URL = `${process.env['SUPPORT_SERVICE_URL'] ?? 'http://localhost:3002'}/api/tickets`;
 
 export interface Session {
@@ -17,7 +17,7 @@ export class GatewayService {
   constructor(
     private readonly http: LokiHttpService,
     private readonly logger: LokiLoggerService,
-  ) {}
+  ) { }
 
   @Log({ level: 'info' })
   async login(email: string, password: string) {

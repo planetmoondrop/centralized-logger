@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { LokiLoggerModule } from 'moondrop-centralized-logger';
+import { LokiLoggerModule } from '@moondrop/centralized-logger';
 import { GatewayModule } from './gateway/gateway.module';
 
 @Module({
@@ -18,4 +18,4 @@ import { GatewayModule } from './gateway/gateway.module';
     GatewayModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }

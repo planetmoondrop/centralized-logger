@@ -43,7 +43,6 @@
   },
 
   "panels": [
-
     {
       "id": 1,
       "type": "row",
@@ -79,12 +78,14 @@
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum(rate(http_requests_total{app=~\"$app\",env=~\"$env\"}[$__rate_interval]))",
-        "legendFormat": "req/s",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{app=~\"$app\",env=~\"$env\"}[$__rate_interval]))",
+          "legendFormat": "req/s",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -113,12 +114,14 @@
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum(rate(http_requests_total{app=~\"$app\",env=~\"$env\",status_code=~\"5..\"}[$__rate_interval]))",
-        "legendFormat": "errors/s",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{app=~\"$app\",env=~\"$env\",status_code=~\"5..\"}[$__rate_interval]))",
+          "legendFormat": "errors/s",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -147,12 +150,14 @@
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket{app=~\"$app\",env=~\"$env\"}[$__rate_interval])))",
-        "legendFormat": "p95",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(http_request_duration_seconds_bucket{app=~\"$app\",env=~\"$env\"}[$__rate_interval])))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -181,12 +186,14 @@
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum(nodejs_heap_size_used_bytes{app=~\"$app\",env=~\"$env\"})",
-        "legendFormat": "heap used",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(nodejs_heap_size_used_bytes{app=~\"$app\",env=~\"$env\"})",
+          "legendFormat": "heap used",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -215,12 +222,14 @@
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "max(nodejs_eventloop_lag_seconds{app=~\"$app\",env=~\"$env\"})",
-        "legendFormat": "lag",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "max(nodejs_eventloop_lag_seconds{app=~\"$app\",env=~\"$env\"})",
+          "legendFormat": "lag",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -249,12 +258,14 @@
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum(http_requests_in_flight{app=~\"$app\",env=~\"$env\"})",
-        "legendFormat": "in-flight",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(http_requests_in_flight{app=~\"$app\",env=~\"$env\"})",
+          "legendFormat": "in-flight",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -288,10 +299,12 @@
           }
         },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "user" },
+          {
+            "matcher": { "id": "byName", "options": "user" },
             "properties": [{ "id": "color", "value": { "fixedColor": "#5794F2", "mode": "fixed" } }]
           },
-          { "matcher": { "id": "byName", "options": "system" },
+          {
+            "matcher": { "id": "byName", "options": "system" },
             "properties": [{ "id": "color", "value": { "fixedColor": "#FF9830", "mode": "fixed" } }]
           }
         ]
@@ -303,13 +316,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by(app) (rate(process_cpu_seconds_total{app=~\"$app\",env=~\"$env\",type=\"user\"}[$__rate_interval]))",
+          "expr": "sum by(app) (rate(process_cpu_user_seconds_total{app=~\"$app\",env=~\"$env\"}[$__rate_interval]))",
           "legendFormat": "{{app}} user",
           "refId": "user"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by(app) (rate(process_cpu_seconds_total{app=~\"$app\",env=~\"$env\",type=\"system\"}[$__rate_interval]))",
+          "expr": "sum by(app) (rate(process_cpu_system_seconds_total{app=~\"$app\",env=~\"$env\"}[$__rate_interval]))",
           "legendFormat": "{{app}} system",
           "refId": "system"
         }
@@ -333,7 +346,11 @@
       },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max", "lastNotNull"] }
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["mean", "max", "lastNotNull"]
+        }
       },
       "targets": [
         {
@@ -392,12 +409,14 @@
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum(nodejs_heap_size_used_bytes{app=~\"$app\",env=~\"$env\"}) / sum(nodejs_heap_size_total_bytes{app=~\"$app\",env=~\"$env\"})",
-        "legendFormat": "heap %",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(nodejs_heap_size_used_bytes{app=~\"$app\",env=~\"$env\"}) / sum(nodejs_heap_size_total_bytes{app=~\"$app\",env=~\"$env\"})",
+          "legendFormat": "heap %",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -419,12 +438,14 @@
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max"] }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum by(app, gctype) (rate(nodejs_gc_duration_seconds_sum{app=~\"$app\",env=~\"$env\"}[$__rate_interval]))",
-        "legendFormat": "{{app}} {{gctype}}",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by(app, gctype) (rate(nodejs_gc_duration_seconds_sum{app=~\"$app\",env=~\"$env\"}[$__rate_interval]))",
+          "legendFormat": "{{app}} {{gctype}}",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -454,12 +475,14 @@
         "tooltip": { "mode": "multi", "sort": "desc" },
         "legend": { "displayMode": "list", "placement": "bottom" }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "nodejs_eventloop_lag_seconds{app=~\"$app\",env=~\"$env\"}",
-        "legendFormat": "{{app}}",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "nodejs_eventloop_lag_seconds{app=~\"$app\",env=~\"$env\"}",
+          "legendFormat": "{{app}}",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -487,7 +510,11 @@
       },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max", "lastNotNull"] }
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["mean", "max", "lastNotNull"]
+        }
       },
       "targets": [
         {
@@ -514,16 +541,16 @@
           "custom": { "lineWidth": 2, "fillOpacity": 8 }
         },
         "overrides": [
-          { "matcher": { "id": "byRegexp", "options": "p99.*" },
+          {
+            "matcher": { "id": "byRegexp", "options": "p99.*" },
             "properties": [
               { "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } },
               { "id": "custom.lineWidth", "value": 3 }
             ]
           },
-          { "matcher": { "id": "byRegexp", "options": "p95.*" },
-            "properties": [
-              { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }
-            ]
+          {
+            "matcher": { "id": "byRegexp", "options": "p95.*" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
           }
         ]
       },
@@ -567,13 +594,16 @@
           "custom": { "lineWidth": 2, "fillOpacity": 20, "gradientMode": "opacity" }
         },
         "overrides": [
-          { "matcher": { "id": "byName", "options": "2xx" },
+          {
+            "matcher": { "id": "byName", "options": "2xx" },
             "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
           },
-          { "matcher": { "id": "byName", "options": "4xx" },
+          {
+            "matcher": { "id": "byName", "options": "4xx" },
             "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
           },
-          { "matcher": { "id": "byName", "options": "5xx" },
+          {
+            "matcher": { "id": "byName", "options": "5xx" },
             "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
           }
         ]
@@ -621,7 +651,11 @@
       },
       "options": {
         "tooltip": { "mode": "multi", "sort": "desc" },
-        "legend": { "displayMode": "table", "placement": "right", "calcs": ["mean", "max", "lastNotNull"] }
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["mean", "max", "lastNotNull"]
+        }
       },
       "targets": [
         {
@@ -674,6 +708,5 @@
         }
       ]
     }
-
   ]
 }

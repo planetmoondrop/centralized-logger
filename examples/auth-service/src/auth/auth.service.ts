@@ -1,5 +1,5 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { LokiLoggerService, Log } from 'moondrop-centralized-logger';
+import { LokiLoggerService, Log } from '@moondrop/centralized-logger';
 import { v4 as uuidv4 } from 'uuid';
 
 interface User {
@@ -47,7 +47,7 @@ export class AuthService {
   // token → session (in-memory — restarts clear all sessions)
   private readonly sessions = new Map<string, Session>();
 
-  constructor(private readonly logger: LokiLoggerService) {}
+  constructor(private readonly logger: LokiLoggerService) { }
 
   @Log({ level: 'info' })
   login(email: string, password: string): { token: string } & Session {

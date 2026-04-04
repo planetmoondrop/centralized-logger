@@ -1,6 +1,6 @@
 # @moondrop/logger-client
 
-Axios interceptor for frontend apps that connects them to the `moondrop-centralized-logger` trace chain.
+Axios interceptor for frontend apps that connects them to the `@moondrop/centralized-logger` trace chain.
 
 Reads the `x-loki-trace-id` response header from any API response and injects it back into every subsequent request — so your frontend sessions appear as a continuous trace in Grafana alongside the backend logs.
 
@@ -32,13 +32,13 @@ That's it. Every response that includes `x-loki-trace-id` stores the value, and 
 ```ts
 const ids = attachSessionInterceptor(api, {
   // Response header to read the trace ID from
-  responseHeader: 'x-loki-trace-id',    // default
+  responseHeader: 'x-loki-trace-id', // default
 
   // Request header to inject the trace ID into
-  requestHeader: 'x-loki-trace-id',     // default
+  requestHeader: 'x-loki-trace-id', // default
 
   // Key used to store the trace ID in the storage backend
-  storageKey: 'sessionId',              // default
+  storageKey: 'sessionId', // default
 
   // Custom storage — defaults to MemoryStorage (in-process Map).
   // Provide any object that implements { getItem, setItem }.
@@ -55,8 +55,8 @@ import { attachSessionInterceptor, SessionStorage } from '@moondrop/logger-clien
 
 // Browser localStorage
 const webStorage: SessionStorage = {
-  getItem:  (key) => localStorage.getItem(key),
-  setItem:  (key, value) => localStorage.setItem(key, value),
+  getItem: (key) => localStorage.getItem(key),
+  setItem: (key, value) => localStorage.setItem(key, value),
 };
 
 attachSessionInterceptor(api, { storage: webStorage });
@@ -68,8 +68,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 attachSessionInterceptor(api, {
   storage: {
-    getItem:  (key) => AsyncStorage.getItem(key),
-    setItem:  (key, value) => AsyncStorage.setItem(key, value),
+    getItem: (key) => AsyncStorage.getItem(key),
+    setItem: (key, value) => AsyncStorage.setItem(key, value),
   },
 });
 ```
