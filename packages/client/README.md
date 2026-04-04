@@ -1,22 +1,22 @@
-# @moondrop/logger-client
+# @planetmoondrop/logger-client
 
-Axios interceptor for frontend apps that connects them to the `@moondrop/centralized-logger` trace chain.
+Axios interceptor for frontend apps that connects them to the `@planetmoondrop/centralized-logger` trace chain.
 
 Reads the `x-loki-trace-id` response header from any API response and injects it back into every subsequent request — so your frontend sessions appear as a continuous trace in Grafana alongside the backend logs.
 
 ## Installation
 
 ```bash
-npm install @moondrop/logger-client axios
+npm install @planetmoondrop/logger-client axios
 # or
-pnpm add @moondrop/logger-client axios
+pnpm add @planetmoondrop/logger-client axios
 ```
 
 ## Basic usage
 
 ```ts
 import axios from 'axios';
-import { attachSessionInterceptor } from '@moondrop/logger-client';
+import { attachSessionInterceptor } from '@planetmoondrop/logger-client';
 
 const api = axios.create({ baseURL: 'https://api.example.com' });
 
@@ -51,7 +51,7 @@ const ids = attachSessionInterceptor(api, {
 The default `MemoryStorage` keeps the trace ID in a `Map` — it works fine for a single-page session but clears on page reload. Provide your own storage to persist across reloads:
 
 ```ts
-import { attachSessionInterceptor, SessionStorage } from '@moondrop/logger-client';
+import { attachSessionInterceptor, SessionStorage } from '@planetmoondrop/logger-client';
 
 // Browser localStorage
 const webStorage: SessionStorage = {

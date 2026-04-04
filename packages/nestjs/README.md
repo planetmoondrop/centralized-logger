@@ -1,4 +1,4 @@
-# @moondrop/centralized-logger
+# @planetmoondrop/centralized-logger
 
 Centralized Grafana Loki logging for NestJS microservices with automatic distributed tracing, cross-service trace propagation, and zero manual wiring.
 
@@ -11,9 +11,9 @@ Centralized Grafana Loki logging for NestJS microservices with automatic distrib
 ## Installation
 
 ```bash
-npm install @moondrop/centralized-logger winston uuid
+npm install @planetmoondrop/centralized-logger winston uuid
 # or
-pnpm add @moondrop/centralized-logger winston uuid
+pnpm add @planetmoondrop/centralized-logger winston uuid
 ```
 
 Peer dependencies (install separately):
@@ -28,7 +28,7 @@ npm install @nestjs/common @nestjs/core reflect-metadata rxjs
 
 ```ts
 // app.module.ts
-import { LokiLoggerModule } from '@moondrop/centralized-logger';
+import { LokiLoggerModule } from '@planetmoondrop/centralized-logger';
 
 @Module({
   imports: [
@@ -46,7 +46,7 @@ export class AppModule {}
 
 ```ts
 // main.ts
-import { LokiLoggerModule } from '@moondrop/centralized-logger';
+import { LokiLoggerModule } from '@planetmoondrop/centralized-logger';
 
 const app = await NestFactory.create(AppModule, { bufferLogs: true });
 LokiLoggerModule.apply(app); // sets up trace middleware + global interceptor
@@ -63,7 +63,7 @@ await app.listen(3000);
 ### 3. Inject and use the logger
 
 ```ts
-import { LokiLoggerService } from '@moondrop/centralized-logger';
+import { LokiLoggerService } from '@planetmoondrop/centralized-logger';
 
 @Injectable()
 export class OrdersService {
@@ -80,7 +80,7 @@ export class OrdersService {
 ### 4. Decorate methods for automatic entry/exit logging
 
 ```ts
-import { Log } from '@moondrop/centralized-logger';
+import { Log } from '@planetmoondrop/centralized-logger';
 
 @Injectable()
 export class PaymentsService {
@@ -111,7 +111,7 @@ Import `LokiHttpModule` in any feature module that makes outgoing HTTP calls. It
 
 ```ts
 // orders.module.ts
-import { LokiHttpModule } from '@moondrop/centralized-logger';
+import { LokiHttpModule } from '@planetmoondrop/centralized-logger';
 
 @Module({
   imports: [LokiHttpModule],
@@ -122,7 +122,7 @@ export class OrdersModule {}
 
 ```ts
 // orders.service.ts
-import { LokiHttpService } from '@moondrop/centralized-logger';
+import { LokiHttpService } from '@planetmoondrop/centralized-logger';
 
 @Injectable()
 export class OrdersService {

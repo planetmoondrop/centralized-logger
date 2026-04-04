@@ -35,7 +35,7 @@ services:
       retries: 10
       start_period: 20s
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── Observability: Tempo ───────────────────────────────────────────────────
   tempo:
@@ -51,7 +51,7 @@ services:
       - ../docker/tempo/tempo-config.yaml:/etc/tempo.yaml:ro
       - tempo-data:/tmp/tempo
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── Observability: Prometheus ─────────────────────────────────────────────
   prometheus:
@@ -76,7 +76,7 @@ services:
       retries: 5
       start_period: 10s
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── Observability: Grafana ─────────────────────────────────────────────────
   grafana:
@@ -103,7 +103,7 @@ services:
       tempo:
         condition: service_started
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── Promtail — scrapes container stdout/stderr → Loki ─────────────────────
   promtail:
@@ -119,7 +119,7 @@ services:
       loki:
         condition: service_healthy
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── auth-service ───────────────────────────────────────────────────────────
   auth-service:
@@ -143,7 +143,7 @@ services:
       tempo:
         condition: service_started
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── customer-support ──────────────────────────────────────────────────────
   customer-support:
@@ -167,7 +167,7 @@ services:
       tempo:
         condition: service_started
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── backend (gateway) ─────────────────────────────────────────────────────
   backend:
@@ -198,7 +198,7 @@ services:
       customer-support:
         condition: service_started
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── frontend (Next.js) ────────────────────────────────────────────────────
   frontend:
@@ -217,7 +217,7 @@ services:
     depends_on:
       - backend
     networks:
-      - moondrop
+      - planetmoondrop
 
   # ── Archive exporter — twice-daily gzip archives of all Loki logs ─────────
   # Runs two cron jobs per day (UTC):
@@ -240,7 +240,7 @@ services:
       loki:
         condition: service_healthy
     networks:
-      - moondrop
+      - planetmoondrop
 
 volumes:
   loki-data:
@@ -250,5 +250,5 @@ volumes:
   promtail-positions:
 
 networks:
-  moondrop:
+  planetmoondrop:
     driver: bridge

@@ -1,7 +1,7 @@
 'use client'
 
 import axios from 'axios'
-import { attachSessionInterceptor, BrowserSessionStorage } from '@moondrop/logger-client'
+import { attachSessionInterceptor, BrowserSessionStorage } from '@planetmoondrop/logger-client'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3003/api'
 export const TRACE_VIEWER = process.env.NEXT_PUBLIC_TRACE_VIEWER ?? 'http://localhost:3003/_trace'
@@ -26,7 +26,7 @@ export const interceptorIds = attachSessionInterceptor(api, {
 })
 
 if (typeof window !== 'undefined') {
-  console.log('[moondrop-logger-client] interceptors attached', interceptorIds)
+  console.log('[planetmoondrop-logger-client] interceptors attached', interceptorIds)
 }
 
 export function authHeader(token: string | null): Record<string, string> {

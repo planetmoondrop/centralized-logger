@@ -1,6 +1,6 @@
 # centralized-logger
 
-Monorepo for `@moondrop/centralized-logger` — centralized Grafana Loki logging
+Monorepo for `@planetmoondrop/centralized-logger` — centralized Grafana Loki logging
 for NestJS microservices with automatic distributed tracing.
 
 ## Packages
@@ -23,8 +23,8 @@ cd examples && docker compose up --build
 
 ```
 packages/
-  nestjs/    — @moondrop/centralized-logger (npm package)
-  client/    — @moondrop/logger-client (npm package)
+  nestjs/    — @planetmoondrop/centralized-logger (npm package)
+  client/    — @planetmoondrop/logger-client (npm package)
 examples/
   auth-service/       — NestJS auth (login/validate/logout)
   customer-support/   — NestJS tickets CRUD
@@ -49,6 +49,6 @@ pnpm install
 pnpm build
 
 # Typecheck
-pnpm --filter @moondrop/centralized-logger typecheck
-pnpm --filter @moondrop/logger-client exec tsc --noEmit
+pnpm --filter @planetmoondrop/centralized-logger typecheck
+pnpm --filter @planetmoondrop/logger-client exec tsc --noEmit
 ```

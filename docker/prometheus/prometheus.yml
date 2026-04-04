@@ -3,7 +3,7 @@ global:
   evaluation_interval: 15s
   scrape_timeout: 10s
   external_labels:
-    monitor: 'moondrop-observability'
+    monitor: 'planetmoondrop-observability'
 
 # ── Alert rules (optional — add your .rules files here) ────────────────────────
 # rule_files:
@@ -11,7 +11,6 @@ global:
 
 # ── Scrape targets ─────────────────────────────────────────────────────────────
 scrape_configs:
-
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:

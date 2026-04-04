@@ -1,13 +1,13 @@
 {
   "title": "Archive Log Viewer",
   "uid": "archive-logs",
-  "description": "Query re-ingested archive logs. Run `moondrop-archive-import --file <archive.jsonl.gz>` first, then select the date and window to explore logs that have been rotated out of the 30-day hot window.",
+  "description": "Query re-ingested archive logs. Run `planetmoondrop-archive-import --file <archive.jsonl.gz>` first, then select the date and window to explore logs that have been rotated out of the 30-day hot window.",
   "schemaVersion": 38,
   "version": 1,
   "refresh": false,
   "time": { "from": "now-7d", "to": "now" },
   "timepicker": {},
-  "tags": ["nestjs", "loki", "archive", "moondrop"],
+  "tags": ["nestjs", "loki", "archive", "planetmoondrop"],
   "editable": true,
 
   "templating": {
@@ -15,7 +15,7 @@
       {
         "name": "archive_date",
         "label": "Archive Date",
-        "description": "Date of the archive window (YYYY-MM-DD). Must match a file imported with moondrop-archive-import.",
+        "description": "Date of the archive window (YYYY-MM-DD). Must match a file imported with planetmoondrop-archive-import.",
         "type": "query",
         "datasource": { "type": "loki", "uid": "loki" },
         "query": "label_values({archive=\"true\"}, archive_date)",
@@ -66,7 +66,6 @@
   },
 
   "panels": [
-
     {
       "id": 1,
       "type": "text",
@@ -94,12 +93,14 @@
       "fieldConfig": {
         "defaults": { "color": { "mode": "fixed", "fixedColor": "#5794F2" }, "unit": "short" }
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} [7d]))",
-        "instant": true,
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} [7d]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -117,12 +118,14 @@
       "fieldConfig": {
         "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "unit": "short" }
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "count(sum by(app) (count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\"} [7d])))",
-        "instant": true,
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count(sum by(app) (count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\"} [7d])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -150,12 +153,14 @@
           "color": { "mode": "thresholds" }
         }
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | level = \"error\" [7d]))",
-        "instant": true,
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | level = \"error\" [7d]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -173,12 +178,14 @@
       "fieldConfig": {
         "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "unit": "short" }
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | logType = \"http_in_res\" [7d]))",
-        "instant": true,
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | logType = \"http_in_res\" [7d]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -198,11 +205,13 @@
         "sortOrder": "Ascending",
         "dedupStrategy": "none"
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} |~ \"$search\"",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} |~ \"$search\"",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -221,11 +230,13 @@
         "sortOrder": "Ascending",
         "dedupStrategy": "none"
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | level = \"error\"",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | level = \"error\"",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -244,12 +255,13 @@
         "sortOrder": "Ascending",
         "dedupStrategy": "none"
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | logType = \"http_in_res\" | line_format `[{{.app}}]  {{.method}}  {{.path}}  [{{.statusCode}}]  +{{.duration}}ms  \"traceId\":\"{{.traceId}}\"`",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | logType = \"http_in_res\" | line_format `[{{.app}}]  {{.method}}  {{.path}}  [{{.statusCode}}]  +{{.duration}}ms  \"traceId\":\"{{.traceId}}\"`",
+          "refId": "A"
+        }
+      ]
     }
-
   ]
 }
