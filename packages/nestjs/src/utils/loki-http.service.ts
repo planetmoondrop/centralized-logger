@@ -30,7 +30,7 @@ export class LokiHttpService {
     private readonly http: HttpService,
     private readonly logger: LokiLoggerService,
     @Inject(LOKI_LOGGER_OPTIONS) private readonly options: LokiLoggerOptions,
-  ) {}
+  ) { }
 
   get<T = unknown>(url: string, config?: AxiosRequestConfig): Observable<AxiosResponse<T>> {
     return this.request<T>('GET', url, undefined, config);

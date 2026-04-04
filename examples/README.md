@@ -1,12 +1,12 @@
 # Examples
 
 Three NestJS backends + one Vite frontend that exercise the full
-`@moondrop/centralized-logger` stack end-to-end.
+`@planetmoondrop/centralized-logger` stack end-to-end.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                  frontend  :5173                          │
-│  (Vite + @moondrop/logger-client)                        │
+│  (Vite + @planetmoondrop/logger-client)                        │
 │  Captures x-loki-trace-id from every response header     │
 │  and injects it into every outgoing request              │
 └────────────────────┬─────────────────────────────────────┘
@@ -73,7 +73,7 @@ Grafana opens with anonymous admin access — no login required.
 2. Create a ticket, change its status, refresh the list.
    Each action goes: frontend → backend → auth-service + customer-support.
 3. The **Last x-loki-trace-id** box in the sidebar captures the response
-   header automatically (via `@moondrop/logger-client`).
+   header automatically (via `@planetmoondrop/logger-client`).
 4. Click **Open Trace Viewer ↗** to open the built-in viewer on the gateway
    and see the full cross-service log sequence for that exact request.
 5. In Grafana → **NestJS / Trace Journey Explorer**, paste the same trace ID
@@ -98,8 +98,8 @@ If you want to run the services directly with Node for faster iteration:
 ```bash
 # From repo root — build the packages once
 pnpm install
-pnpm --filter @moondrop/centralized-logger build
-pnpm --filter @moondrop/logger-client build
+pnpm --filter @planetmoondrop/centralized-logger build
+pnpm --filter @planetmoondrop/logger-client build
 
 # Install each example's deps (uses file: references to local dist)
 cd examples/auth-service     && pnpm install --ignore-scripts && cd ../..

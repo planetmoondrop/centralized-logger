@@ -1,4 +1,4 @@
-# Moondrop archive exporter cron
+# Planetmoondrop archive exporter cron
 # Runs as root inside the container.
 #
 # Window logic (UTC):

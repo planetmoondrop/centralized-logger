@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Moondrop Archive Import — re-ingest a gzip archive back into Loki
+ * Planetmoondrop Archive Import — re-ingest a gzip archive back into Loki
  *
  * This script lives in docker/archive-exporter/ alongside the exporter.
  * Run it from your project root whenever you want to load an archive
@@ -39,10 +39,10 @@ import { basename } from 'node:path';
 function parseArgs(argv) {
   const args = {};
   for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === '--file')       args.file      = argv[i + 1];
-    if (argv[i] === '--loki')       args.loki      = argv[i + 1];
+    if (argv[i] === '--file') args.file = argv[i + 1];
+    if (argv[i] === '--loki') args.loki = argv[i + 1];
     if (argv[i] === '--batch-size') args.batchSize = Number(argv[i + 1]);
-    if (argv[i] === '--dry-run')    args.dryRun    = true;
+    if (argv[i] === '--dry-run') args.dryRun = true;
     if (argv[i] === '--help' || argv[i] === '-h') args.help = true;
   }
   return args;
@@ -52,9 +52,9 @@ const args = parseArgs(process.argv.slice(2));
 
 if (args.help || !args.file) {
   console.log(`
-  Moondrop Archive Import
+  Planetmoondrop Archive Import
 
-  Re-ingests a Moondrop gzip archive (.jsonl.gz) into Loki with archive labels,
+  Re-ingests a Planetmoondrop gzip archive (.jsonl.gz) into Loki with archive labels,
   so you can query old logs in Grafana like any other log stream.
 
   Usage:
@@ -75,10 +75,10 @@ if (args.help || !args.file) {
   process.exit(args.help ? 0 : 1);
 }
 
-const LOKI_HOST  = args.loki      ?? process.env['LOKI_HOST']            ?? 'http://localhost:3100';
+const LOKI_HOST = args.loki ?? process.env['LOKI_HOST'] ?? 'http://localhost:3100';
 const BATCH_SIZE = args.batchSize ?? Number(process.env['ARCHIVE_BATCH_SIZE'] ?? '500');
-const API_KEY    = process.env['LOKI_API_KEY'];
-const DRY_RUN    = args.dryRun ?? false;
+const API_KEY = process.env['LOKI_API_KEY'];
+const DRY_RUN = args.dryRun ?? false;
 
 // ─── Infer archive_date + archive_window from filename ────────────────────────
 // Expected filename format: YYYY-MM-DD-am.jsonl.gz  or  YYYY-MM-DD-pm.jsonl.gz
@@ -92,22 +92,32 @@ function inferFromFilename(file) {
 function postJSON(url, body) {
   return new Promise((resolve, reject) => {
     const payload = Buffer.from(JSON.stringify(body));
-    const parsed  = new URL(url);
-    const mod     = parsed.protocol === 'https:' ? https : http;
+    const parsed = new URL(url);
+    const mod = parsed.protocol === 'https:' ? https : http;
     const headers = {
-      'Content-Type':   'application/json',
+      'Content-Type': 'application/json',
       'Content-Length': String(payload.length),
     };
     if (API_KEY) headers['X-Scope-OrgID'] = API_KEY;
 
     const req = mod.request(
-      { hostname: parsed.hostname, port: parsed.port, path: parsed.pathname, method: 'POST', headers },
+      {
+        hostname: parsed.hostname,
+        port: parsed.port,
+        path: parsed.pathname,
+        method: 'POST',
+        headers,
+      },
       (res) => {
         const chunks = [];
         res.on('data', (c) => chunks.push(c));
         res.on('end', () => {
           if (res.statusCode >= 400) {
-            reject(new Error(`Loki push failed ${res.statusCode}: ${Buffer.concat(chunks).toString().slice(0, 300)}`));
+            reject(
+              new Error(
+                `Loki push failed ${res.statusCode}: ${Buffer.concat(chunks).toString().slice(0, 300)}`,
+              ),
+            );
           } else {
             resolve();
           }
@@ -146,8 +156,8 @@ async function main() {
 
   const { archive_date, archive_window } = inferFromFilename(args.file);
   const archiveMeta = {
-    archive:        'true',
-    ...(archive_date   && { archive_date }),
+    archive: 'true',
+    ...(archive_date && { archive_date }),
     ...(archive_window && { archive_window }),
   };
 
@@ -206,7 +216,9 @@ async function main() {
 
   await flushBatch();
 
-  console.log(`\n[import] Complete — ${totalLines} lines, ${pushedBatches} batches, ${errors} errors`);
+  console.log(
+    `\n[import] Complete — ${totalLines} lines, ${pushedBatches} batches, ${errors} errors`,
+  );
   if (errors > 0) {
     console.warn('[import] Some batches failed. Check Loki connectivity and re-run.');
     process.exit(1);

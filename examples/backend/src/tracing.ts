@@ -3,7 +3,7 @@
  * It installs require-hooks so that http, express, and other modules are
  * automatically instrumented before NestJS loads them.
  */
-import { initObservability } from '@moondrop/centralized-logger';
+import { initObservability } from '@planetmoondrop/centralized-logger';
 
 initObservability({
   serviceName: 'backend',

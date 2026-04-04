@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Moondrop Archive Exporter
+ * Planetmoondrop Archive Exporter
  *
  * Runs as a cron inside Docker. Called twice per day:
  *   - At 00:05 UTC  → exports the previous day's PM window (12:00–24:00)
@@ -11,7 +11,7 @@
  * Each line in the JSONL file is a Loki log entry in the format:
  *   { "labels": {...}, "timestamp": "RFC3339nano", "line": "raw log string" }
  *
- * This format is the exact input expected by moondrop-archive-import.mjs,
+ * This format is the exact input expected by planetmoondrop-archive-import.mjs,
  * which can re-push the entries back into Loki with archive=true labels.
  *
  * Environment variables:

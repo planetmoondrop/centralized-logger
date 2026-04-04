@@ -2,7 +2,7 @@ import './tracing'; // MUST be first — installs OTEL hooks before any other mo
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { LokiLoggerModule } from '@moondrop/centralized-logger';
+import { LokiLoggerModule } from '@planetmoondrop/centralized-logger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });

@@ -4,7 +4,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# 1. Build @moondrop/logger-client package
+# 1. Build @planetmoondrop/logger-client package
 COPY packages/client/package.json ./packages/client/
 RUN cd packages/client && npm install --ignore-scripts
 COPY packages/client/src         ./packages/client/src
