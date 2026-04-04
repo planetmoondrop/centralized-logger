@@ -1,0 +1,10 @@
+# Moondrop archive exporter cron
+# Runs as root inside the container.
+#
+# Window logic (UTC):
+#   00:05 — export yesterday PM window (12:00–24:00)
+#   12:05 — export today AM window    (00:00–12:00)
+#
+# Env vars are passed via /etc/environment (see Dockerfile ENTRYPOINT).
+5 0  * * * node /app/exporter.mjs >> /var/log/archive-exporter.log 2>&1
+5 12 * * * node /app/exporter.mjs >> /var/log/archive-exporter.log 2>&1

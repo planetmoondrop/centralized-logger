@@ -10,7 +10,7 @@ common:
   storage:
     filesystem:
       chunks_directory: /loki/chunks
-      rules_directory:  /loki/rules
+      rules_directory: /loki/rules
   replication_factor: 1
   ring:
     instance_addr: 127.0.0.1
@@ -63,10 +63,10 @@ ingester:
 limits_config:
   ingestion_rate_mb: 32
   ingestion_burst_size_mb: 64
-  # 31-day retention — satisfies the >= 1-month requirement
-  retention_period: 744h
+  # 30-day retention — logs older than this are deleted by the compactor
+  retention_period: 720h
   # Query window slightly larger than retention so Grafana doesn't clip results
-  max_query_length: 745h
+  max_query_length: 721h
   max_query_parallelism: 16
   # Full trace reconstructions can return a lot of lines
   max_entries_limit_per_query: 10000
@@ -87,16 +87,16 @@ storage_config:
   # Legacy index — needed to serve reads on data ingested before 2024-01-01
   boltdb_shipper:
     active_index_directory: /loki/boltdb-shipper-active
-    cache_location:          /loki/boltdb-shipper-cache
-    cache_ttl:               24h
-    shared_store:            filesystem
+    cache_location: /loki/boltdb-shipper-cache
+    cache_ttl: 24h
+    shared_store: filesystem
 
   # TSDB index — all new data goes here
   tsdb_shipper:
     active_index_directory: /loki/tsdb-active
-    cache_location:          /loki/tsdb-cache
-    cache_ttl:               24h
-    shared_store:            filesystem
+    cache_location: /loki/tsdb-cache
+    cache_ttl: 24h
+    shared_store: filesystem
 
   filesystem:
     directory: /loki/chunks
