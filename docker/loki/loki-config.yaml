@@ -63,10 +63,10 @@ ingester:
 limits_config:
   ingestion_rate_mb: 32
   ingestion_burst_size_mb: 64
-  # 31-day retention — satisfies the >= 1-month requirement
-  retention_period: 744h
+  # 30-day retention — logs older than this are deleted by the compactor
+  retention_period: 720h
   # Query window slightly larger than retention so Grafana doesn't clip results
-  max_query_length: 745h
+  max_query_length: 721h
   max_query_parallelism: 16
   # Full trace reconstructions can return a lot of lines
   max_entries_limit_per_query: 10000
