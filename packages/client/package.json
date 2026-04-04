@@ -39,6 +39,9 @@
   ],
   "author": "Planet Moondrop",
   "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
   "peerDependencies": {
     "axios": ">=0.21.0"
   },

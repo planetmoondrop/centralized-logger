@@ -1,7 +1,7 @@
 # Examples
 
 Three NestJS backends + one Vite frontend that exercise the full
-`moondrop-centralized-logger` stack end-to-end.
+`@moondrop/centralized-logger` stack end-to-end.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -98,7 +98,7 @@ If you want to run the services directly with Node for faster iteration:
 ```bash
 # From repo root — build the packages once
 pnpm install
-pnpm --filter moondrop-centralized-logger build
+pnpm --filter @moondrop/centralized-logger build
 pnpm --filter @moondrop/logger-client build
 
 # Install each example's deps (uses file: references to local dist)

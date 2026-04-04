@@ -29,10 +29,10 @@ import { Readable } from 'node:stream';
 import https from 'node:https';
 import http from 'node:http';
 
-const LOKI_HOST   = process.env['LOKI_HOST']      ?? 'http://loki:3100';
-const ARCHIVE_DIR = process.env['ARCHIVE_DIR']    ?? '/archive';
-const WINDOW      = process.env['ARCHIVE_WINDOW'];     // 'am' | 'pm' | undefined
-const LIMIT       = Number(process.env['LOG_LIMIT'] ?? '5000');
+const LOKI_HOST = process.env['LOKI_HOST'] ?? 'http://loki:3100';
+const ARCHIVE_DIR = process.env['ARCHIVE_DIR'] ?? '/archive';
+const WINDOW = process.env['ARCHIVE_WINDOW']; // 'am' | 'pm' | undefined
+const LIMIT = Number(process.env['LOG_LIMIT'] ?? '5000');
 
 // ─── Timezone-aware window boundaries ─────────────────────────────────────────
 function windowBoundaries() {
@@ -46,21 +46,38 @@ function windowBoundaries() {
 
   if (window === 'am') {
     // AM window: today 00:00–12:00 UTC
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-    dateStr  = toDateStr(d);
-    startMs  = d.getTime();
-    endMs    = startMs + 12 * 60 * 60 * 1000;
+    const d = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0),
+    );
+    dateStr = toDateStr(d);
+    startMs = d.getTime();
+    endMs = startMs + 12 * 60 * 60 * 1000;
   } else {
     // PM window: yesterday 12:00–24:00 UTC
     const yesterday = new Date(now);
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-    const d = new Date(Date.UTC(yesterday.getUTCFullYear(), yesterday.getUTCMonth(), yesterday.getUTCDate(), 12, 0, 0, 0));
-    dateStr  = toDateStr(yesterday);
-    startMs  = d.getTime();
-    endMs    = startMs + 12 * 60 * 60 * 1000;
+    const d = new Date(
+      Date.UTC(
+        yesterday.getUTCFullYear(),
+        yesterday.getUTCMonth(),
+        yesterday.getUTCDate(),
+        12,
+        0,
+        0,
+        0,
+      ),
+    );
+    dateStr = toDateStr(yesterday);
+    startMs = d.getTime();
+    endMs = startMs + 12 * 60 * 60 * 1000;
   }
 
-  return { window, dateStr, startNs: BigInt(startMs) * 1_000_000n, endNs: BigInt(endMs) * 1_000_000n };
+  return {
+    window,
+    dateStr,
+    startNs: BigInt(startMs) * 1_000_000n,
+    endNs: BigInt(endMs) * 1_000_000n,
+  };
 }
 
 function toDateStr(d) {
@@ -71,17 +88,23 @@ function toDateStr(d) {
 function get(url) {
   return new Promise((resolve, reject) => {
     const mod = url.startsWith('https') ? https : http;
-    mod.get(url, (res) => {
-      const chunks = [];
-      res.on('data', (c) => chunks.push(c));
-      res.on('end', () => {
-        if (res.statusCode !== 200) {
-          reject(new Error(`Loki responded ${res.statusCode}: ${Buffer.concat(chunks).toString().slice(0, 200)}`));
-        } else {
-          resolve(JSON.parse(Buffer.concat(chunks).toString()));
-        }
-      });
-    }).on('error', reject);
+    mod
+      .get(url, (res) => {
+        const chunks = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            reject(
+              new Error(
+                `Loki responded ${res.statusCode}: ${Buffer.concat(chunks).toString().slice(0, 200)}`,
+              ),
+            );
+          } else {
+            resolve(JSON.parse(Buffer.concat(chunks).toString()));
+          }
+        });
+      })
+      .on('error', reject);
   });
 }
 
@@ -93,7 +116,9 @@ async function getStreams(startNs, endNs) {
     // Return unique stream selectors as {app, env, ...} objects
     return (data.data ?? []).filter((s) => !s.archive); // skip already-archived streams
   } catch (err) {
-    console.warn(`[exporter] Could not fetch stream list: ${err.message} — falling back to broad selector`);
+    console.warn(
+      `[exporter] Could not fetch stream list: ${err.message} — falling back to broad selector`,
+    );
     return [{ app: '.+' }];
   }
 }
@@ -101,7 +126,12 @@ async function getStreams(startNs, endNs) {
 // ─── Query a single stream with pagination ───────────────────────────────────
 async function* queryStream(labels, startNs, endNs) {
   // Build selector from label object, e.g. {app="auth-service",env="production"}
-  const selector = '{' + Object.entries(labels).map(([k, v]) => `${k}="${v}"`).join(',') + '}';
+  const selector =
+    '{' +
+    Object.entries(labels)
+      .map(([k, v]) => `${k}="${v}"`)
+      .join(',') +
+    '}';
   const encodedSelector = encodeURIComponent(selector);
 
   let cursor = startNs;
@@ -128,7 +158,7 @@ async function* queryStream(labels, startNs, endNs) {
 
     let lastTs = cursor;
     for (const stream of result) {
-      for (const [ts, line] of (stream.values ?? [])) {
+      for (const [ts, line] of stream.values ?? []) {
         const tsNs = BigInt(ts);
         if (tsNs < startNs || tsNs >= endNs) continue;
         yield { labels: stream.labels, timestamp: ts, line };
@@ -149,12 +179,14 @@ async function* queryStream(labels, startNs, endNs) {
 async function main() {
   const { window, dateStr, startNs, endNs } = windowBoundaries();
   const filename = `${dateStr}-${window}.jsonl.gz`;
-  const outPath  = `${ARCHIVE_DIR}/${filename}`;
+  const outPath = `${ARCHIVE_DIR}/${filename}`;
 
   mkdirSync(ARCHIVE_DIR, { recursive: true });
 
   console.log(`[exporter] Starting archive: ${filename}`);
-  console.log(`[exporter] Window: ${new Date(Number(startNs / 1_000_000n)).toISOString()} → ${new Date(Number(endNs / 1_000_000n)).toISOString()}`);
+  console.log(
+    `[exporter] Window: ${new Date(Number(startNs / 1_000_000n)).toISOString()} → ${new Date(Number(endNs / 1_000_000n)).toISOString()}`,
+  );
   console.log(`[exporter] Loki: ${LOKI_HOST}`);
 
   // Collect all streams active in this window
@@ -182,8 +214,8 @@ async function main() {
 
   // Stream lines into gzip file
   const source = Readable.from(lines.map((l) => l + '\n'));
-  const dest   = createWriteStream(outPath);
-  const gz     = createGzip({ level: 9 });
+  const dest = createWriteStream(outPath);
+  const gz = createGzip({ level: 9 });
 
   await pipeline(source, gz, dest);
 

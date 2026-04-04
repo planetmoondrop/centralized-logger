@@ -5,7 +5,7 @@
  *
  * @example
  * // main.ts  ← must be the first imports
- * import { initObservability } from 'moondrop-centralized-logger';
+ * import { initObservability } from '@moondrop/centralized-logger';
  * initObservability({ serviceName: 'auth-service', otlpEndpoint: 'http://tempo:4318' });
  *
  * // … rest of NestJS bootstrap

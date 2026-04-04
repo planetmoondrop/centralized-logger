@@ -1,6 +1,6 @@
 # @moondrop/logger-client
 
-Axios interceptor for frontend apps that connects them to the `moondrop-centralized-logger` trace chain.
+Axios interceptor for frontend apps that connects them to the `@moondrop/centralized-logger` trace chain.
 
 Reads the `x-loki-trace-id` response header from any API response and injects it back into every subsequent request — so your frontend sessions appear as a continuous trace in Grafana alongside the backend logs.
 

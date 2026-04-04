@@ -275,13 +275,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(process_cpu_seconds_total{app=\"$service\",env=~\"$env\",type=\"user\"}[$__rate_interval])",
+          "expr": "rate(process_cpu_user_seconds_total{app=\"$service\",env=~\"$env\"}[$__rate_interval])",
           "legendFormat": "user",
           "refId": "user"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "rate(process_cpu_seconds_total{app=\"$service\",env=~\"$env\",type=\"system\"}[$__rate_interval])",
+          "expr": "rate(process_cpu_system_seconds_total{app=\"$service\",env=~\"$env\"}[$__rate_interval])",
           "legendFormat": "system",
           "refId": "system"
         }

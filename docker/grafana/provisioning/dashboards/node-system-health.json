@@ -303,13 +303,13 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by(app) (rate(process_cpu_seconds_total{app=~\"$app\",env=~\"$env\",type=\"user\"}[$__rate_interval]))",
+          "expr": "sum by(app) (rate(process_cpu_user_seconds_total{app=~\"$app\",env=~\"$env\"}[$__rate_interval]))",
           "legendFormat": "{{app}} user",
           "refId": "user"
         },
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum by(app) (rate(process_cpu_seconds_total{app=~\"$app\",env=~\"$env\",type=\"system\"}[$__rate_interval]))",
+          "expr": "sum by(app) (rate(process_cpu_system_seconds_total{app=~\"$app\",env=~\"$env\"}[$__rate_interval]))",
           "legendFormat": "{{app}} system",
           "refId": "system"
         }
