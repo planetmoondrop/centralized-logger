@@ -74,6 +74,15 @@ export interface LokiLoggerOptions {
   lokiRetries?: number;
 
   /**
+   * Maximum number of log entries held in the in-memory Loki push buffer.
+   * When the limit is reached the oldest entries are dropped to protect memory.
+   * Increase for high-throughput services or sustained Loki outages.
+   * At ~500 bytes per entry the default uses at most ~2.5 MB of memory.
+   * @default 5000
+   */
+  lokiBufferSize?: number;
+
+  /**
    * When true, logs the incoming request body.
    * Warning: may log sensitive data. Never enable in production.
    * @default false
@@ -86,6 +95,16 @@ export interface LokiLoggerOptions {
    * @default false
    */
   logResponseBody?: boolean;
+
+  /**
+   * List of object key names to redact from all log output.
+   * Any key matching an entry (at any depth in the logged object) will have
+   * its value replaced with '[REDACTED]' before reaching any transport.
+   * Matching is case-sensitive. Default is empty — no redaction applied.
+   * @default []
+   * @example ['password', 'token', 'authorization', 'secret', 'apiKey']
+   */
+  redactFields?: string[];
 
   /**
    * Enable the built-in trace viewer UI and REST API.
