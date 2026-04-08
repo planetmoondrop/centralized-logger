@@ -1,64 +1,112 @@
-import type {
-  AxiosInstance,
-  InternalAxiosRequestConfig,
-  AxiosResponse,
-} from "axios";
-import { SessionInterceptorOptions, SessionStorage } from "./types";
-import { MemoryStorage } from "./storage";
+import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
+import { BrowserSessionStorage, MemoryStorage } from './storage';
+
+// ─── Internal constants ────────────────────────────────────────────────────────
+// Header name must match the NestJS package default (traceHeader: 'x-loki-trace-id').
+const TRACE_HEADER = 'x-loki-trace-id';
+const STORAGE_KEY  = '__pmld_loki_trace';
+
+// ─── Internal storage ─────────────────────────────────────────────────────────
+// Browser: sessionStorage — survives same-tab refresh, cleared on tab close.
+// Everywhere else (SSR, Node scripts): in-memory — scoped to the JS context.
+const traceStorage =
+  typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
+    ? new BrowserSessionStorage()
+    : new MemoryStorage();
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
+function generateHexId(bytes: number): string {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const buf = new Uint8Array(bytes);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Node.js fallback (SSR)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('crypto').randomBytes(bytes).toString('hex') as string;
+}
+
+// ─── Public types ─────────────────────────────────────────────────────────────
 
 /**
- * Attaches an interceptor to the given Axios instance that manages the `x-session-id` header.
+ * IDs returned by `attachSessionInterceptor`.
+ * Pass them to `axiosInstance.interceptors.*.eject(id)` to detach on logout
+ * or test cleanup.
+ */
+export interface SessionInterceptorIds {
+  /** ID of the request interceptor that injects `x-loki-trace-id`. */
+  requestId: number;
+  /** ID of the response interceptor that captures `x-loki-trace-id`. */
+  responseId: number;
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
+
+/**
+ * Attaches trace-id propagation interceptors to the given Axios instance.
  *
- * On each response, if the response contains the configured header, its value is saved in the storage.
- * On each request, if a session ID exists in the storage, it is added to the request headers.
+ * **Request side** — reads the stored trace id and injects it as
+ * `x-loki-trace-id` on every outgoing request so the backend can correlate
+ * all calls within the same session.
  *
- * @param axiosInstance - The Axios instance to attach the interceptor to.
- * @param options - Configuration options.
- * @returns The interceptor ID (useful for ejecting later).
+ * **Response side** — reads `x-loki-trace-id` from every response header and
+ * writes it into storage so the backend-assigned id takes precedence over the
+ * client-generated seed.
+ *
+ * **Seeding** — on setup a 32-char hex trace id is auto-generated and stored
+ * *only if storage is empty*, so the very first request already carries an id
+ * without waiting for a response.  A same-tab page refresh reuses the
+ * existing id (no reset) because `sessionStorage` persists for the tab
+ * lifetime.  A new tab or session starts fresh.
+ *
+ * Everything — header name, storage key, storage backend — is managed
+ * internally.  No configuration is needed.
+ *
+ * @returns `{ requestId, responseId }` — Axios interceptor IDs for ejection.
+ *
+ * @example
+ * // main.ts / api.ts — one line, no options
+ * attachSessionInterceptor(axiosInstance);
  */
 export function attachSessionInterceptor(
   axiosInstance: AxiosInstance,
-  options: SessionInterceptorOptions = {},
-): number {
-  const {
-    responseHeader = "x-loki-trace-id",
-    requestHeader = "x-loki-trace-id",
-    storageKey = "sessionId",
-    storage = new MemoryStorage(),
-  } = options;
+): SessionInterceptorIds {
+  // Seed storage so the first outgoing request already has a trace id.
+  // Only writes if nothing is stored yet — preserves the id across same-tab refreshes.
+  void (async () => {
+    try {
+      const existing = await traceStorage.getItem(STORAGE_KEY);
+      if (!existing) {
+        await traceStorage.setItem(STORAGE_KEY, generateHexId(16));
+      }
+    } catch {
+      // Storage errors must never crash the app
+    }
+  })();
 
-  // Request interceptor: add session ID to headers if available
-  const requestInterceptor = axiosInstance.interceptors.request.use(
+  const requestId = axiosInstance.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
       try {
-        const sessionId = await storage.getItem(storageKey);
-        if (sessionId) {
-          config.headers[requestHeader] = sessionId;
+        const traceId = await traceStorage.getItem(STORAGE_KEY);
+        if (traceId) {
+          config.headers[TRACE_HEADER] = traceId;
         }
-      } catch (err) {
-        // Silently fail – do not block the request
-        console.warn(
-          "[axios-session-interceptor] Failed to read session ID:",
-          err,
-        );
+      } catch {
+        // Silently skip — never block the request
       }
       return config;
     },
     (error) => Promise.reject(error),
   );
 
-  // Response interceptor: save session ID from response headers
-  const responseInterceptor = axiosInstance.interceptors.response.use(
+  const responseId = axiosInstance.interceptors.response.use(
     async (response: AxiosResponse) => {
-      const sessionId = response.headers?.[responseHeader];
-      if (sessionId && typeof sessionId === "string") {
+      const traceId = response.headers?.[TRACE_HEADER];
+      if (traceId && typeof traceId === 'string') {
         try {
-          await storage.setItem(storageKey, sessionId);
-        } catch (err) {
-          console.warn(
-            "[axios-session-interceptor] Failed to save session ID:",
-            err,
-          );
+          await traceStorage.setItem(STORAGE_KEY, traceId);
+        } catch {
+          // Silently skip — never crash on storage write
         }
       }
       return response;
@@ -66,7 +114,5 @@ export function attachSessionInterceptor(
     (error) => Promise.reject(error),
   );
 
-  // Return the ID of the response interceptor (or combine both? Usually you'd need both IDs)
-  // This package returns the response interceptor ID for convenience.
-  return responseInterceptor;
+  return { requestId, responseId };
 }

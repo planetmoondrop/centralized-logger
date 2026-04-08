@@ -10,6 +10,7 @@ import { TicketsModule } from './tickets/tickets.module';
       logLevel: 'debug',
       consoleOutput: true,
       enableMetrics: true,
+      enableTracing: true,
       logRequestBody: true,
       logResponseBody: true,
     }),

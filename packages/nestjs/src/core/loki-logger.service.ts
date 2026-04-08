@@ -12,6 +12,8 @@ class MinimalLokiTransport extends TransportStream {
   private readonly lokiUrl: URL;
   private readonly labels: Record<string, string>;
   private readonly maxRetries: number;
+  private readonly maxBufferSize: number;
+  private readonly bufferWhenUnreachable: boolean;
   private readonly apiKey: string | undefined;
   private buffer: Array<[string, string]> = [];
   private flushTimer: NodeJS.Timeout | null = null;
@@ -21,12 +23,16 @@ class MinimalLokiTransport extends TransportStream {
     labels: Record<string, string>;
     intervalMs?: number;
     maxRetries?: number;
+    maxBufferSize?: number;
+    bufferWhenUnreachable?: boolean;
     apiKey?: string;
   }) {
     super();
     this.lokiUrl = new URL('/loki/api/v1/push', opts.host);
     this.labels = opts.labels;
     this.maxRetries = opts.maxRetries ?? 3;
+    this.maxBufferSize = opts.maxBufferSize ?? 5000;
+    this.bufferWhenUnreachable = opts.bufferWhenUnreachable ?? false;
     this.apiKey = opts.apiKey;
 
     const intervalMs = opts.intervalMs ?? 5000;
@@ -38,6 +44,10 @@ class MinimalLokiTransport extends TransportStream {
     // Loki expects nanosecond-precision timestamps as strings
     const ts = String(Date.now() * 1_000_000);
     this.buffer.push([ts, JSON.stringify(info)]);
+    // Drop the oldest entry when the cap is reached to protect memory
+    if (this.buffer.length > this.maxBufferSize) {
+      this.buffer.shift();
+    }
     callback();
   }
 
@@ -71,9 +81,13 @@ class MinimalLokiTransport extends TransportStream {
 
     const retry = () => {
       if (retriesLeft <= 0) {
-        // Re-queue the batch to be picked up on the next flush cycle.
-        // Prepend so ordering is preserved relative to newer entries.
-        this.buffer = [...values, ...this.buffer];
+        // All retries exhausted — re-queue only if the user opted in to buffering.
+        // With bufferWhenUnreachable: false (default), the batch is simply dropped.
+        if (this.bufferWhenUnreachable) {
+          const available = Math.max(0, this.maxBufferSize - this.buffer.length);
+          const requeue = values.slice(0, available);
+          this.buffer = [...requeue, ...this.buffer];
+        }
         return;
       }
       const delayMs = 200 * Math.pow(2, attempt);
@@ -102,7 +116,6 @@ class MinimalLokiTransport extends TransportStream {
         },
         (res) => {
           res.resume();
-          // Loki returns 204 on success; retry on any server error.
           if (res.statusCode && res.statusCode >= 500) retry();
         },
       );
@@ -143,8 +156,11 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
       jsonConsole: false,
       lokiBatchInterval: 5000,
       lokiRetries: 3,
+      lokiBufferSize: 5000,
+      bufferLogsWhenUnreachable: false,
       logRequestBody: false,
       logResponseBody: false,
+      redactFields: [],
       enableTraceViewer: false,
       traceViewerPath: '/_trace',
       traceViewerServices: options.serviceName,
@@ -165,35 +181,35 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
           format: opts.jsonConsole
             ? winston.format.combine(winston.format.timestamp(), winston.format.json())
             : winston.format.combine(
-                winston.format.colorize({ all: true }),
-                winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
-                winston.format.printf(
-                  ({
-                    timestamp,
-                    level,
-                    message,
-                    traceId,
-                    spanId,
-                    context,
-                    duration,
-                    sequence,
-                    ...rest
-                  }) => {
-                    const parts: string[] = [`${timestamp} ${level}`];
-                    if (context) parts.push(`[${String(context)}]`);
-                    if (traceId) parts.push(`[T:${String(traceId).slice(0, 8)}]`);
-                    if (spanId) parts.push(`[S:${String(spanId).slice(0, 8)}]`);
-                    if (sequence !== undefined) parts.push(`#${String(sequence)}`);
-                    parts.push(String(message));
-                    if (duration !== undefined) parts.push(`+${String(duration)}ms`);
-                    const extra = Object.entries(rest).filter(
-                      ([k]) => !['service', 'path', 'method', 'userId', 'parentSpanId'].includes(k),
-                    );
-                    if (extra.length) parts.push(JSON.stringify(Object.fromEntries(extra)));
-                    return parts.join(' ');
-                  },
-                ),
+              winston.format.colorize({ all: true }),
+              winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
+              winston.format.printf(
+                ({
+                  timestamp,
+                  level,
+                  message,
+                  traceId,
+                  spanId,
+                  context,
+                  duration,
+                  sequence,
+                  ...rest
+                }) => {
+                  const parts: string[] = [`${timestamp} ${level}`];
+                  if (context) parts.push(`[${String(context)}]`);
+                  if (traceId) parts.push(`[T:${String(traceId).slice(0, 8)}]`);
+                  if (spanId) parts.push(`[S:${String(spanId).slice(0, 8)}]`);
+                  if (sequence !== undefined) parts.push(`#${String(sequence)}`);
+                  parts.push(String(message));
+                  if (duration !== undefined) parts.push(`+${String(duration)}ms`);
+                  const extra = Object.entries(rest).filter(
+                    ([k]) => !['service', 'path', 'method', 'userId', 'parentSpanId'].includes(k),
+                  );
+                  if (extra.length) parts.push(JSON.stringify(Object.fromEntries(extra)));
+                  return parts.join(' ');
+                },
               ),
+            ),
         }),
       );
     }
@@ -208,14 +224,33 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
         },
         intervalMs: opts.lokiBatchInterval,
         maxRetries: opts.lokiRetries,
+        maxBufferSize: opts.lokiBufferSize,
+        bufferWhenUnreachable: opts.bufferLogsWhenUnreachable,
         apiKey: opts.apiKey,
       }),
     );
 
+    const redactFieldsSet = new Set(opts.redactFields);
+
     this.logger = winston.createLogger({
       level: opts.logLevel,
+      format: redactFieldsSet.size > 0
+        ? winston.format((info) =>
+          this.redactObject(info, redactFieldsSet) as winston.Logform.TransformableInfo,
+        )()
+        : undefined,
       transports,
     });
+
+    if (opts.environment === 'production' || opts.environment === 'prod' && (opts.logRequestBody || opts.logResponseBody)) {
+      this.logger.warn(
+        'logRequestBody/logResponseBody is enabled in production — sensitive data may be shipped to Loki',
+        { context: 'LokiLoggerService', logType: 'service' },
+      );
+    }
+
+    // Non-blocking connectivity probe — warns if Loki is unreachable at startup
+    setImmediate(() => this.probeLoki());
   }
 
   // ─── Public API ──────────────────────────────────────────────────
@@ -302,11 +337,74 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
         ...(store.ip && { ip: store.ip }),
         ...(store.userId && { userId: store.userId }),
         sequence,
+        // Spread custom tags (static from @Log decorator + dynamic from addTraceTag())
+        // so every label is queryable as a top-level field in Loki/LogQL.
+        ...(store.tags && store.tags),
       }),
       logType,
       ...(context && { context }),
       ...(extra && this.filterUndefined(extra)),
     };
+  }
+
+  private probeLoki(): void {
+    const lokiHost = this.resolvedOptions.lokiHost;
+    try {
+      const url = new URL('/ready', lokiHost);
+      const lib = url.protocol === 'https:' ? https : http;
+      const req = lib.request(
+        {
+          hostname: url.hostname,
+          port: url.port || (url.protocol === 'https:' ? 443 : 80),
+          path: '/ready',
+          method: 'GET',
+          timeout: 3000,
+        },
+        (res) => {
+          res.resume();
+          if (res.statusCode && res.statusCode >= 400) {
+            this.logger.warn(
+              `Loki not reachable at ${lokiHost} (HTTP ${res.statusCode}) — logs will ${this.resolvedOptions.bufferLogsWhenUnreachable ? 'buffer' : 'be dropped'} until Loki is available`,
+              { context: 'LokiLoggerService', logType: 'service' },
+            );
+          }
+        },
+      );
+      req.on('error', () => {
+        this.logger.warn(
+          `Loki not reachable at ${lokiHost} — logs will ${this.resolvedOptions.bufferLogsWhenUnreachable ? 'buffer' : 'be dropped'} until Loki is available`,
+          { context: 'LokiLoggerService', logType: 'service' },
+        );
+      });
+      req.on('timeout', () => {
+        req.destroy();
+      });
+      req.end();
+    } catch {
+      this.logger.warn(
+        `Invalid lokiHost "${lokiHost}" — could not probe Loki connectivity`,
+        { context: 'LokiLoggerService', logType: 'service' },
+      );
+    }
+  }
+
+  /**
+   * Recursively walks `obj` and replaces the value of any key present in
+   * `fields` with `'[REDACTED]'`. Arrays are traversed element-by-element.
+   * Primitives are returned as-is. Uses a Set for O(1) key lookups.
+   */
+  private redactObject(obj: unknown, fields: Set<string>): unknown {
+    if (Array.isArray(obj)) {
+      return obj.map((el) => this.redactObject(el, fields));
+    }
+    if (obj !== null && typeof obj === 'object') {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+        out[k] = fields.has(k) ? '[REDACTED]' : this.redactObject(v, fields);
+      }
+      return out;
+    }
+    return obj;
   }
 
   private filterUndefined(obj: Record<string, unknown>): Record<string, unknown> {
