@@ -37,14 +37,30 @@
         "sort": 1,
         "current": {},
         "hide": 0
+      },
+      {
+        "name": "exclude_metrics",
+        "label": "Exclude /metrics",
+        "type": "custom",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "No : NO, Yes : /metrics",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0,
+        "current": { "selected": true, "text": "No", "value": ".*" },
+        "options": [
+          { "selected": true, "text": "No", "value": ".*" },
+          { "selected": false, "text": "Yes", "value": "/metrics" }
+        ],
+        "hide": 0
       }
     ]
   },
 
   "panels": [
-
     {
-      "id": 1,
+      "id": 0,
       "type": "text",
       "title": "",
       "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
@@ -56,41 +72,37 @@
     },
 
     {
-      "id": 2,
+      "id": 1,
       "type": "stat",
-      "title": "Request Rate",
+      "title": "Total Requests",
       "gridPos": { "h": 3, "w": 4, "x": 0, "y": 2 },
-      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "datasource": { "type": "loki", "uid": "loki" },
       "options": {
-        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "reduceOptions": { "calcs": ["sum"] },
         "colorMode": "background",
-        "graphMode": "area"
+        "graphMode": "area",
+        "textMode": "auto"
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "reqps",
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 50   },
-              { "color": "red",    "value": 200  }
-            ]
-          }
+          "color": { "mode": "fixed", "fixedColor": "#5794F2" },
+          "unit": "short"
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum(rate(http_requests_total{app=\"$service\",env=~\"$env\"}[$__rate_interval]))",
-        "legendFormat": "req/s",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$service\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
     },
 
     {
-      "id": 3,
+      "id": 2,
       "type": "stat",
-      "title": "Error Rate",
+      "title": "Request Rate",
       "gridPos": { "h": 3, "w": 4, "x": 4, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
@@ -104,26 +116,62 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 0.01 },
-              { "color": "red",    "value": 0.1  }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 50 },
+              { "color": "red", "value": 200 }
             ]
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum(rate(http_requests_total{app=\"$service\",env=~\"$env\",status_code=~\"5..\"}[$__rate_interval]))",
-        "legendFormat": "5xx/s",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{app=\"$service\",env=~\"$env\",path!~\"$exclude_metrics\"} [$__rate_interval]))",
+          "legendFormat": "req/s",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Error Rate",
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 2 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red", "value": 0.1 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum(rate(http_requests_total{app=\"$service\",env=~\"$env\",status_code=~\"5..\",path!~\"$exclude_metrics\"} [$__rate_interval]))",
+          "legendFormat": "5xx/s",
+          "refId": "A"
+        }
+      ]
     },
 
     {
       "id": 4,
       "type": "stat",
       "title": "P99 Latency",
-      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -136,26 +184,28 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 0.5  },
-              { "color": "red",    "value": 2    }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.5 },
+              { "color": "red", "value": 2 }
             ]
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "histogram_quantile(0.99, sum by(le) (rate(http_request_duration_seconds_bucket{app=\"$service\",env=~\"$env\"}[$__rate_interval])))",
-        "legendFormat": "p99",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(http_request_duration_seconds_bucket{app=\"$service\",env=~\"$env\"}[$__rate_interval])))",
+          "legendFormat": "p99",
+          "refId": "A"
+        }
+      ]
     },
 
     {
       "id": 5,
       "type": "stat",
       "title": "Heap Used",
-      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -168,26 +218,28 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green",  "value": null       },
-              { "color": "yellow", "value": 400000000  },
-              { "color": "red",    "value": 800000000  }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 400000000 },
+              { "color": "red", "value": 800000000 }
             ]
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "nodejs_heap_size_used_bytes{app=\"$service\",env=~\"$env\"}",
-        "legendFormat": "heap",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "nodejs_heap_size_used_bytes{app=\"$service\",env=~\"$env\"}",
+          "legendFormat": "heap",
+          "refId": "A"
+        }
+      ]
     },
 
     {
       "id": 6,
       "type": "stat",
       "title": "Event Loop Lag",
-      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -200,26 +252,28 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green",  "value": null },
+              { "color": "green", "value": null },
               { "color": "yellow", "value": 0.05 },
-              { "color": "red",    "value": 0.2  }
+              { "color": "red", "value": 0.2 }
             ]
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "nodejs_eventloop_lag_seconds{app=\"$service\",env=~\"$env\"}",
-        "legendFormat": "lag",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "nodejs_eventloop_lag_seconds{app=\"$service\",env=~\"$env\"}",
+          "legendFormat": "lag",
+          "refId": "A"
+        }
+      ]
     },
 
     {
       "id": 7,
       "type": "stat",
       "title": "Active Handles",
-      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -232,19 +286,21 @@
           "thresholds": {
             "mode": "absolute",
             "steps": [
-              { "color": "green",  "value": null },
-              { "color": "yellow", "value": 100  },
-              { "color": "red",    "value": 500  }
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 100 },
+              { "color": "red", "value": 500 }
             ]
           }
         }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "nodejs_active_handles_total{app=\"$service\",env=~\"$env\"}",
-        "legendFormat": "handles",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "nodejs_active_handles_total{app=\"$service\",env=~\"$env\"}",
+          "legendFormat": "handles",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -344,12 +400,14 @@
         "tooltip": { "mode": "multi" },
         "legend": { "displayMode": "list", "placement": "bottom" }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "sum by(gctype) (rate(nodejs_gc_duration_seconds_sum{app=\"$service\",env=~\"$env\"}[$__rate_interval]))",
-        "legendFormat": "{{gctype}}",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "sum by(gctype) (rate(nodejs_gc_duration_seconds_sum{app=\"$service\",env=~\"$env\"}[$__rate_interval]))",
+          "legendFormat": "{{gctype}}",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -458,13 +516,15 @@
         "legend": { "displayMode": "hidden" },
         "tooltip": { "mode": "single" }
       },
-      "targets": [{
-        "datasource": { "type": "prometheus", "uid": "prometheus" },
-        "expr": "topk(10, histogram_quantile(0.95, sum by(route, le) (rate(http_request_duration_seconds_bucket{app=\"$service\",env=~\"$env\"}[$__rate_interval]))))",
-        "legendFormat": "{{route}}",
-        "instant": true,
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "expr": "topk(10, histogram_quantile(0.95, sum by(route, le) (rate(http_request_duration_seconds_bucket{app=\"$service\",env=~\"$env\"}[$__rate_interval]))))",
+          "legendFormat": "{{route}}",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -491,11 +551,13 @@
         "sortOrder": "Descending",
         "dedupStrategy": "none"
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "{app=\"$service\",env=~\"$env\"} | json | logType = \"http_in_res\" | line_format `{{.ip | default \"?\"}}  [{{.statusCode}}]  {{.method}}  {{.path}}  +{{.duration}}ms  \"traceId\":\"{{.traceId}}\"`",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=\"$service\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | line_format `{{.ip | default \"?\"}}  [{{.statusCode}}]  {{.method}}  {{.path}}  +{{.duration}}ms  \"traceId\":\"{{.traceId}}\"`",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -513,11 +575,13 @@
         "sortOrder": "Descending",
         "dedupStrategy": "none"
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "{app=\"$service\",env=~\"$env\"} | json | level = \"error\"",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=\"$service\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | level = \"error\"",
+          "refId": "A"
+        }
+      ]
     },
 
     {
@@ -535,12 +599,13 @@
         "sortOrder": "Descending",
         "dedupStrategy": "none"
       },
-      "targets": [{
-        "datasource": { "type": "loki", "uid": "loki" },
-        "expr": "{app=\"$service\",env=~\"$env\"} | json | logType = \"db\"",
-        "refId": "A"
-      }]
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=\"$service\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"db\"",
+          "refId": "A"
+        }
+      ]
     }
-
   ]
 }

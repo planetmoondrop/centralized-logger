@@ -56,6 +56,23 @@
           { "text": "debug", "value": "debug" }
         ],
         "hide": 0
+      },
+      {
+        "name": "exclude_metrics",
+        "label": "Exclude /metrics",
+        "type": "custom",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "No : NO, Yes : /metrics",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0,
+        "current": { "selected": true, "text": "No", "value": ".*" },
+        "options": [
+          { "selected": true, "text": "No", "value": ".*" },
+          { "selected": false, "text": "Yes", "value": "/metrics" }
+        ],
+        "hide": 0
       }
     ]
   },
@@ -94,7 +111,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\" [30d]))",
+          "expr": "sum(count_over_time({app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | $tagField=\"$tagValue\" | level=~\"$level\" [30d]))",
           "instant": true,
           "refId": "A"
         }
@@ -122,7 +139,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "count(sum by(app) (count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\" [30d])))",
+          "expr": "count(sum by(app) (count_over_time({app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | $tagField=\"$tagValue\" | level=~\"$level\" [30d])))",
           "instant": true,
           "refId": "A"
         }
@@ -151,7 +168,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "count(sum by(traceId) (count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\" [30d])))",
+          "expr": "count(sum by(traceId) (count_over_time({app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | $tagField=\"$tagValue\" | level=~\"$level\" [30d])))",
           "instant": true,
           "refId": "A"
         }
@@ -187,7 +204,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=\"error\" [30d]))",
+          "expr": "sum(count_over_time({app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | $tagField=\"$tagValue\" | level=\"error\" [30d]))",
           "instant": true,
           "refId": "A"
         }
@@ -213,7 +230,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by(app) (count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\" [$__interval]))",
+          "expr": "sum by(app) (count_over_time({app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | $tagField=\"$tagValue\" | level=~\"$level\" [$__interval]))",
           "legendFormat": "{{app}}",
           "refId": "A"
         }
@@ -267,7 +284,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\"",
+          "expr": "{app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | $tagField=\"$tagValue\" | level=~\"$level\"",
           "refId": "A"
         }
       ]

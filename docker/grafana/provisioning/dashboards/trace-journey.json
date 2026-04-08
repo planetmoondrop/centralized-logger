@@ -35,6 +35,23 @@
         "type": "textbox",
         "current": { "value": ".+" },
         "hide": 0
+      },
+      {
+        "name": "exclude_metrics",
+        "label": "Exclude /metrics",
+        "type": "custom",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "No : NO, Yes : /metrics",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0,
+        "current": { "selected": true, "text": "No", "value": ".*" },
+        "options": [
+          { "selected": true, "text": "No", "value": ".*" },
+          { "selected": false, "text": "Yes", "value": "/metrics" }
+        ],
+        "hide": 0
       }
     ]
   },
@@ -83,7 +100,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "count(sum by(app) (count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" [$__range])))",
+          "expr": "count(sum by(app) (count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range])))",
           "instant": true,
           "refId": "A"
         }
@@ -113,7 +130,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -150,7 +167,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | level = \"error\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | level = \"error\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -187,7 +204,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | level = \"warn\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | level = \"warn\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -217,7 +234,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType = \"db\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"db\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -247,7 +264,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_out\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_out\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -284,7 +301,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_in_res\" | statusCode =~ \"4[0-9][0-9]\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_in_res\" | statusCode =~ \"4[0-9][0-9]\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -321,7 +338,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_in_res\" | statusCode =~ \"5[0-9][0-9]\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_in_res\" | statusCode =~ \"5[0-9][0-9]\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -351,7 +368,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "count(sum by(spanId) (count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" [$__range])))",
+          "expr": "count(sum by(spanId) (count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range])))",
           "instant": true,
           "refId": "A"
         }
@@ -381,7 +398,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType = \"interceptor\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"interceptor\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -411,7 +428,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType = \"service\" [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"service\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -456,7 +473,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by(app) (count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
+          "expr": "sum by(app) (count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
           "instant": true,
           "legendFormat": "{{app}}",
           "refId": "A"
@@ -489,7 +506,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum by(logType) (count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
+          "expr": "sum by(logType) (count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
           "instant": true,
           "legendFormat": "{{logType}}",
           "refId": "A"
@@ -551,7 +568,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType =~ \"http_in|http_in_res\" | line_format `[{{.service}}]  {{.method}}  {{.path}}  {{.statusCode}}  +{{.duration}}ms  span={{.spanId}}  traceId={{.traceId}}`",
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType =~ \"http_in|http_in_res\" | line_format `[{{.service}}]  {{.method}}  {{.path}}  {{.statusCode}}  +{{.duration}}ms  span={{.spanId}}  traceId={{.traceId}}`",
           "refId": "A"
         }
       ]
@@ -592,7 +609,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" [$__interval]))",
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__interval]))",
           "legendFormat": "log lines",
           "refId": "A"
         }
@@ -639,7 +656,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | spanId =~ \"$spanId\"",
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | spanId =~ \"$spanId\"",
           "refId": "A"
         }
       ]
@@ -672,7 +689,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType = \"db\" | spanId =~ \"$spanId\"",
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"db\" | spanId =~ \"$spanId\"",
           "refId": "A"
         }
       ]
@@ -697,7 +714,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | level = \"error\" | spanId =~ \"$spanId\"",
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | level = \"error\" | spanId =~ \"$spanId\"",
           "refId": "A"
         }
       ]
@@ -722,7 +739,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$services\"} | json | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_out\" | spanId =~ \"$spanId\"",
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_out\" | spanId =~ \"$spanId\"",
           "refId": "A"
         }
       ]
