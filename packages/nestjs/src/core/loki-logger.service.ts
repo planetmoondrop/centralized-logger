@@ -13,6 +13,7 @@ class MinimalLokiTransport extends TransportStream {
   private readonly labels: Record<string, string>;
   private readonly maxRetries: number;
   private readonly maxBufferSize: number;
+  private readonly bufferWhenUnreachable: boolean;
   private readonly apiKey: string | undefined;
   private buffer: Array<[string, string]> = [];
   private flushTimer: NodeJS.Timeout | null = null;
@@ -23,6 +24,7 @@ class MinimalLokiTransport extends TransportStream {
     intervalMs?: number;
     maxRetries?: number;
     maxBufferSize?: number;
+    bufferWhenUnreachable?: boolean;
     apiKey?: string;
   }) {
     super();
@@ -30,6 +32,7 @@ class MinimalLokiTransport extends TransportStream {
     this.labels = opts.labels;
     this.maxRetries = opts.maxRetries ?? 3;
     this.maxBufferSize = opts.maxBufferSize ?? 5000;
+    this.bufferWhenUnreachable = opts.bufferWhenUnreachable ?? false;
     this.apiKey = opts.apiKey;
 
     const intervalMs = opts.intervalMs ?? 5000;
@@ -78,11 +81,13 @@ class MinimalLokiTransport extends TransportStream {
 
     const retry = () => {
       if (retriesLeft <= 0) {
-        // Re-queue as many entries as the buffer cap allows, preserving order.
-        // Oldest entries are dropped first when the combined size exceeds the cap.
-        const available = Math.max(0, this.maxBufferSize - this.buffer.length);
-        const requeue = values.slice(0, available);
-        this.buffer = [...requeue, ...this.buffer];
+        // All retries exhausted — re-queue only if the user opted in to buffering.
+        // With bufferWhenUnreachable: false (default), the batch is simply dropped.
+        if (this.bufferWhenUnreachable) {
+          const available = Math.max(0, this.maxBufferSize - this.buffer.length);
+          const requeue = values.slice(0, available);
+          this.buffer = [...requeue, ...this.buffer];
+        }
         return;
       }
       const delayMs = 200 * Math.pow(2, attempt);
@@ -111,7 +116,6 @@ class MinimalLokiTransport extends TransportStream {
         },
         (res) => {
           res.resume();
-          // Loki returns 204 on success; retry on any server error.
           if (res.statusCode && res.statusCode >= 500) retry();
         },
       );
@@ -153,6 +157,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
       lokiBatchInterval: 5000,
       lokiRetries: 3,
       lokiBufferSize: 5000,
+      bufferLogsWhenUnreachable: false,
       logRequestBody: false,
       logResponseBody: false,
       redactFields: [],
@@ -220,6 +225,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
         intervalMs: opts.lokiBatchInterval,
         maxRetries: opts.lokiRetries,
         maxBufferSize: opts.lokiBufferSize,
+        bufferWhenUnreachable: opts.bufferLogsWhenUnreachable,
         apiKey: opts.apiKey,
       }),
     );
@@ -230,8 +236,8 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
       level: opts.logLevel,
       format: redactFieldsSet.size > 0
         ? winston.format((info) =>
-            this.redactObject(info, redactFieldsSet) as winston.Logform.TransformableInfo,
-          )()
+          this.redactObject(info, redactFieldsSet) as winston.Logform.TransformableInfo,
+        )()
         : undefined,
       transports,
     });
@@ -331,6 +337,9 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
         ...(store.ip && { ip: store.ip }),
         ...(store.userId && { userId: store.userId }),
         sequence,
+        // Spread custom tags (static from @Log decorator + dynamic from addTraceTag())
+        // so every label is queryable as a top-level field in Loki/LogQL.
+        ...(store.tags && store.tags),
       }),
       logType,
       ...(context && { context }),
@@ -355,7 +364,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
           res.resume();
           if (res.statusCode && res.statusCode >= 400) {
             this.logger.warn(
-              `Loki not reachable at ${lokiHost} (HTTP ${res.statusCode}) — logs will buffer until Loki is available`,
+              `Loki not reachable at ${lokiHost} (HTTP ${res.statusCode}) — logs will ${this.resolvedOptions.bufferLogsWhenUnreachable ? 'buffer' : 'be dropped'} until Loki is available`,
               { context: 'LokiLoggerService', logType: 'service' },
             );
           }
@@ -363,7 +372,7 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
       );
       req.on('error', () => {
         this.logger.warn(
-          `Loki not reachable at ${lokiHost} — logs will buffer until Loki is available`,
+          `Loki not reachable at ${lokiHost} — logs will ${this.resolvedOptions.bufferLogsWhenUnreachable ? 'buffer' : 'be dropped'} until Loki is available`,
           { context: 'LokiLoggerService', logType: 'service' },
         );
       });

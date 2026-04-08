@@ -14,7 +14,7 @@ RUN cd packages/client && npm run build
 # 2. Install frontend deps
 #    npm resolves file:../../packages/client correctly since it's already built above
 COPY examples/frontend/package.json ./examples/frontend/
-RUN cd examples/frontend && npm install --legacy-peer-deps
+RUN cd examples/frontend && npm install --legacy-peer-deps --install-links
 
 # 3. Build Next.js app
 COPY examples/frontend/src         ./examples/frontend/src

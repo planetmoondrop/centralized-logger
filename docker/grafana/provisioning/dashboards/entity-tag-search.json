@@ -1,0 +1,276 @@
+{
+  "title": "Entity Tag Search",
+  "uid": "entity-tag-search",
+  "description": "Search every log that carries a specific entity tag (listingId, orderId, userId, etc.) across all services and time — no LogQL needed. Type a tag field and value, click a traceId to open the full request waterfall in Trace Journey Explorer.",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": false,
+  "time": { "from": "now-30d", "to": "now" },
+  "tags": ["nestjs", "loki", "tags", "entity", "search"],
+  "editable": true,
+
+  "templating": {
+    "list": [
+      {
+        "name": "tagField",
+        "label": "Tag field",
+        "description": "The tag key to search by, e.g. listingId, orderId, userId, invoiceId",
+        "type": "textbox",
+        "current": { "value": "listingId" },
+        "hide": 0
+      },
+      {
+        "name": "tagValue",
+        "label": "Tag value",
+        "description": "The exact value to match, e.g. X6t98",
+        "type": "textbox",
+        "current": { "value": "" },
+        "hide": 0
+      },
+      {
+        "name": "app",
+        "label": "Service",
+        "description": "Filter to one or more services (All = every service)",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({app=~\".+\"}, app)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "level",
+        "label": "Level",
+        "type": "custom",
+        "query": ".+,error,warn,info,debug",
+        "current": { "value": ".+", "text": "all" },
+        "options": [
+          { "text": "all", "value": ".+", "selected": true },
+          { "text": "error", "value": "error" },
+          { "text": "warn", "value": "warn" },
+          { "text": "info", "value": "info" },
+          { "text": "debug", "value": "debug" }
+        ],
+        "hide": 0
+      }
+    ]
+  },
+
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Entity Tag Search\nFind every log line that carries a specific **entity tag** — `listingId`, `orderId`, `invoiceId`, `userId`, or any custom tag added via `@Log({ tags: … })` or `addTraceTag()` in your NestJS code.\n- **Tag field** — the key name (e.g. `listingId`)\n- **Tag value** — the exact value (e.g. `X6t98`)\n- Use **Service** dropdown to narrow by service, or leave on *All* to see cross-service activity.\n- Click any **traceId** in the log table → opens **Trace Journey Explorer** with the full request waterfall."
+      },
+      "transparent": true
+    },
+
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Total matching logs",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 3 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "blue" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\" [30d]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Services touched",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 3 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count(sum by(app) (count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\" [30d])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Unique trace IDs",
+      "description": "How many distinct requests / sessions touched this entity.",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 3 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count(sum by(traceId) (count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\" [30d])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Error count",
+      "description": "Log lines at error level that carry this tag.",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 3 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=\"error\" [30d]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 20,
+      "type": "timeseries",
+      "title": "Activity over time — by service",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 7 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 10 }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "tooltip": { "mode": "multi" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by(app) (count_over_time({app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\" [$__interval]))",
+          "legendFormat": "{{app}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 30,
+      "type": "logs",
+      "title": "All log lines  (expand a row to see all fields · click traceId → Trace Journey Explorer)",
+      "gridPos": { "h": 28, "w": 24, "x": 0, "y": 15 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "links": [
+            {
+              "title": "🔍 Open in Trace Journey Explorer",
+              "url": "/d/trace-journey?var-traceId=${__value.raw}",
+              "targetBlank": true
+            }
+          ]
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "traceId" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "🔍 Open in Trace Journey Explorer",
+                    "url": "/d/trace-journey?var-traceId=${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$app\"} | json | $tagField=\"$tagValue\" | level=~\"$level\"",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

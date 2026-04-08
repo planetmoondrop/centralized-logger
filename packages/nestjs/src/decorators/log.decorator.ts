@@ -18,6 +18,20 @@ export interface LogDecoratorOptions {
    * @default 'debug'
    */
   level?: 'debug' | 'info' | 'warn';
+
+  /**
+   * Static key-value tags attached to every log line emitted by this method
+   * (entry, exit, and error).  Values are fixed at decoration time, so use
+   * these for labels you know upfront (e.g. `{ flow: 'checkout' }`).
+   *
+   * For runtime values (e.g. a listingId that only exists after the DB call),
+   * use `addTraceTag(key, value)` inside the method body instead.
+   *
+   * @example
+   * @Log({ tags: { flow: 'checkout', domain: 'orders' } })
+   * async createOrder(dto: CreateOrderDto) { ... }
+   */
+  tags?: Record<string, unknown>;
 }
 
 /**
@@ -35,7 +49,7 @@ export interface LogDecoratorOptions {
  * async findUser(id: string): Promise<User> { ... }
  *
  * @example
- * @Log({ args: true, level: 'info' })
+ * @Log({ args: true, level: 'info', tags: { flow: 'checkout' } })
  * async createOrder(dto: CreateOrderDto): Promise<Order> { ... }
  */
 export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
@@ -50,7 +64,9 @@ export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
       const method = `${className}.${String(propertyKey)}`;
       const start = Date.now();
 
-      const entryMeta: Record<string, unknown> = {};
+      const staticTags = options.tags ?? {};
+
+      const entryMeta: Record<string, unknown> = { ...staticTags };
       if (options.args) entryMeta.args = args;
 
       logger.logWithType(
@@ -62,7 +78,7 @@ export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
       );
 
       const logExit = (duration: number, result?: unknown) => {
-        const exitMeta: Record<string, unknown> = { duration };
+        const exitMeta: Record<string, unknown> = { ...staticTags, duration };
         if (options.result) exitMeta.result = result;
         logger.logWithType(
           level === 'warn' ? 'warn' : level === 'info' ? 'info' : 'debug',
@@ -76,6 +92,7 @@ export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
       const logError = (err: unknown, duration: number) => {
         const message = err instanceof Error ? err.message : String(err);
         logger.logWithType('error', `✕ ${method} +${duration}ms — ${message}`, 'service', className, {
+          ...staticTags,
           duration,
           stack: err instanceof Error ? err.stack : undefined,
         });

@@ -52,6 +52,13 @@ export interface TraceContext {
    * within a span in the exact order they were emitted.
    */
   sequence: number;
+
+  /**
+   * Custom key-value tags added at runtime via addTraceTag().
+   * Automatically stamped on every log line for the rest of this request.
+   * Scoped to this request only — cleared when the request ends.
+   */
+  tags?: Record<string, unknown>;
 }
 
 /** Classifies the origin of a log entry for filtering in the trace viewer. */

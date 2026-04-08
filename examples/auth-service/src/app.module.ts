@@ -12,6 +12,7 @@ import { AuthModule } from './auth/auth.module';
       enableTraceViewer: true,
       traceViewerServices: 'auth-service,customer-support,backend',
       enableMetrics: true,
+      enableTracing: true,
       logRequestBody: true,
       logResponseBody: true,
     }),

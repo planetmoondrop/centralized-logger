@@ -12,10 +12,11 @@ import { GatewayModule } from './gateway/gateway.module';
       enableTraceViewer: true,
       traceViewerServices: 'auth-service,customer-support,backend',
       enableMetrics: true,
+      enableTracing: true,
       logRequestBody: true,
       logResponseBody: true,
     }),
     GatewayModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
