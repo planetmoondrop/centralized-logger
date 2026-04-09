@@ -1,9 +1,9 @@
 apiVersion: 1
 
 providers:
-  - name: NestJS Microservices
+  - name: PlanetMoondrop - NestJS Microservices
     orgId: 1
-    folder: NestJS
+    folder: PlanetMoondrop - NestJS
     type: file
     disableDeletion: false
     updateIntervalSeconds: 10

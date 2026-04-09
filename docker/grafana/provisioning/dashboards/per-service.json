@@ -37,13 +37,30 @@
         "sort": 1,
         "current": {},
         "hide": 0
+      },
+      {
+        "name": "exclude_metrics",
+        "label": "Exclude /metrics",
+        "type": "custom",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "No : NO, Yes : /metrics",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0,
+        "current": { "selected": true, "text": "No", "value": ".*" },
+        "options": [
+          { "selected": true, "text": "No", "value": ".*" },
+          { "selected": false, "text": "Yes", "value": "/metrics" }
+        ],
+        "hide": 0
       }
     ]
   },
 
   "panels": [
     {
-      "id": 1,
+      "id": 0,
       "type": "text",
       "title": "",
       "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
@@ -55,10 +72,38 @@
     },
 
     {
+      "id": 1,
+      "type": "stat",
+      "title": "Total Requests",
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 2 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#5794F2" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$service\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
       "id": 2,
       "type": "stat",
       "title": "Request Rate",
-      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -81,7 +126,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(http_requests_total{app=\"$service\",env=~\"$env\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_requests_total{app=\"$service\",env=~\"$env\",path!~\"$exclude_metrics\"} [$__rate_interval]))",
           "legendFormat": "req/s",
           "refId": "A"
         }
@@ -92,7 +137,7 @@
       "id": 3,
       "type": "stat",
       "title": "Error Rate",
-      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -115,7 +160,7 @@
       "targets": [
         {
           "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "expr": "sum(rate(http_requests_total{app=\"$service\",env=~\"$env\",status_code=~\"5..\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_requests_total{app=\"$service\",env=~\"$env\",status_code=~\"5..\",path!~\"$exclude_metrics\"} [$__rate_interval]))",
           "legendFormat": "5xx/s",
           "refId": "A"
         }
@@ -126,7 +171,7 @@
       "id": 4,
       "type": "stat",
       "title": "P99 Latency",
-      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -160,7 +205,7 @@
       "id": 5,
       "type": "stat",
       "title": "Heap Used",
-      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -194,7 +239,7 @@
       "id": 6,
       "type": "stat",
       "title": "Event Loop Lag",
-      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -228,7 +273,7 @@
       "id": 7,
       "type": "stat",
       "title": "Active Handles",
-      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 2 },
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 2 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "options": {
         "reduceOptions": { "calcs": ["lastNotNull"] },
@@ -509,7 +554,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=\"$service\",env=~\"$env\"} | json | logType = \"http_in_res\" | line_format `{{.ip | default \"?\"}}  [{{.statusCode}}]  {{.method}}  {{.path}}  +{{.duration}}ms  \"traceId\":\"{{.traceId}}\"`",
+          "expr": "{app=\"$service\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | line_format `{{.ip | default \"?\"}}  [{{.statusCode}}]  {{.method}}  {{.path}}  +{{.duration}}ms  \"traceId\":\"{{.traceId}}\"`",
           "refId": "A"
         }
       ]
@@ -533,7 +578,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=\"$service\",env=~\"$env\"} | json | level = \"error\"",
+          "expr": "{app=\"$service\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | level = \"error\"",
           "refId": "A"
         }
       ]
@@ -557,7 +602,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=\"$service\",env=~\"$env\"} | json | logType = \"db\"",
+          "expr": "{app=\"$service\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"db\"",
           "refId": "A"
         }
       ]

@@ -1,7 +1,7 @@
 'use client'
 
 import axios from 'axios'
-import { attachSessionInterceptor, BrowserSessionStorage } from '@planetmoondrop/logger-client'
+import { attachSessionInterceptor } from '@planetmoondrop/logger-client'
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3003/api'
 export const TRACE_VIEWER = process.env.NEXT_PUBLIC_TRACE_VIEWER ?? 'http://localhost:3003/_trace'
@@ -9,21 +9,11 @@ export const TRACE_VIEWER = process.env.NEXT_PUBLIC_TRACE_VIEWER ?? 'http://loca
 export const api = axios.create({ baseURL: API_BASE })
 
 /**
- * BrowserSessionStorage persists the trace ID for the lifetime of the browser
- * tab so that every request — including the very first — carries the same
- * x-loki-trace-id, allowing all backend calls in a session to be correlated.
- *
- * generateInitialId: true seeds a client-generated trace ID immediately so the
- * first request is already traced before any response has been received.
- * The backend will overwrite it with its own traceId on the first response.
+ * Attaches x-loki-trace-id propagation to every axios request/response.
+ * The package manages storage (sessionStorage in browser) and seeding internally.
+ * Same-tab page refreshes continue the existing trace; new tabs start fresh.
  */
-export const interceptorIds = attachSessionInterceptor(api, {
-  responseHeader: 'x-loki-trace-id',
-  requestHeader: 'x-loki-trace-id',
-  storageKey: 'lokiTraceId',
-  storage: new BrowserSessionStorage(),
-  generateInitialId: true,
-})
+export const interceptorIds = attachSessionInterceptor(api)
 
 if (typeof window !== 'undefined') {
   console.log('[planetmoondrop-logger-client] interceptors attached', interceptorIds)

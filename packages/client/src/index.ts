@@ -1,109 +1,122 @@
 import type { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
-import { SessionInterceptorOptions, SessionStorage } from './types';
-import { MemoryStorage, BrowserSessionStorage, BrowserLocalStorage } from './storage';
+import { BrowserSessionStorage, MemoryStorage } from './storage';
 
-export { MemoryStorage, BrowserSessionStorage, BrowserLocalStorage };
-export type { SessionInterceptorOptions, SessionStorage };
+// ─── Internal constants ────────────────────────────────────────────────────────
+// Header name must match the NestJS package default (traceHeader: 'x-loki-trace-id').
+const TRACE_HEADER = 'x-loki-trace-id';
+const STORAGE_KEY = '__pmld_loki_trace';
+
+// ─── Internal storage ─────────────────────────────────────────────────────────
+// Browser: sessionStorage — survives same-tab refresh, cleared on tab close.
+// Everywhere else (SSR, Node scripts): in-memory — scoped to the JS context.
+const traceStorage =
+  typeof window !== 'undefined' && typeof window.sessionStorage !== 'undefined'
+    ? new BrowserSessionStorage()
+    : new MemoryStorage();
+
+// ─── Internal helpers ─────────────────────────────────────────────────────────
+function generateHexId(bytes: number): string {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const buf = new Uint8Array(bytes);
+    crypto.getRandomValues(buf);
+    return Array.from(buf, (b) => b.toString(16).padStart(2, '0')).join('');
+  }
+  // Node.js fallback (SSR)
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  return require('crypto').randomBytes(bytes).toString('hex') as string;
+}
+
+// ─── Public types ─────────────────────────────────────────────────────────────
 
 /**
- * IDs returned by `attachSessionInterceptor`, one per Axios interceptor slot.
- * Pass them to `axiosInstance.interceptors.request.eject(requestId)` /
- * `axiosInstance.interceptors.response.eject(responseId)` to detach.
+ * IDs returned by `attachSessionInterceptor`.
+ * Pass them to `axiosInstance.interceptors.*.eject(id)` to detach on logout
+ * or test cleanup.
  */
 export interface SessionInterceptorIds {
-  /** ID of the request interceptor that injects the trace header. */
+  /** ID of the request interceptor that injects `x-loki-trace-id`. */
   requestId: number;
-  /** ID of the response interceptor that captures the trace header. */
+  /** ID of the response interceptor that captures `x-loki-trace-id`. */
   responseId: number;
 }
 
+// ─── Public API ───────────────────────────────────────────────────────────────
+
 /**
- * Attaches request + response interceptors to the given Axios instance so that:
+ * Attaches trace-id propagation interceptors to the given Axios instance.
  *
- * - **Every response**: if the server returns `responseHeader`, the value is
- *   written into `storage` under `storageKey`.
- * - **Every request**: if `storage` contains a value for `storageKey`, it is
- *   added to the request under `requestHeader`.
+ * **Request side** — reads the stored trace id and injects it as
+ * `x-loki-trace-id` on every outgoing request so the backend can correlate
+ * all calls within the same session.
  *
- * Because MemoryStorage is cleared on page refresh, pass a `BrowserSessionStorage`
- * or `BrowserLocalStorage` for production use so the trace context survives
- * in-app navigations and full reloads.
+ * **Response side** — reads `x-loki-trace-id` from every response header and
+ * writes it into storage so the backend-assigned id takes precedence over the
+ * client-generated seed.
  *
- * If `initialSessionId` is supplied (or auto-generated via `generateInitialId`),
- * it is written to storage immediately so the **very first** outgoing request
- * already carries a trace ID instead of waiting for the first response.
+ * **Seeding** — on setup a 32-char hex trace id is auto-generated and stored
+ * *only if storage is empty*, so the very first request already carries an id
+ * without waiting for a response.  A same-tab page refresh reuses the
+ * existing id (no reset) because `sessionStorage` persists for the tab
+ * lifetime.  A new tab or session starts fresh.
  *
- * @param axiosInstance - The Axios instance to instrument.
- * @param options - Configuration options.
+ * Everything — header name, storage key, storage backend — is managed
+ * internally.  No configuration is needed.
+ *
  * @returns `{ requestId, responseId }` — Axios interceptor IDs for ejection.
+ *
+ * @example
+ * // main.ts / api.ts — one line, no options
+ * attachSessionInterceptor(axiosInstance);
  */
 export function attachSessionInterceptor(
   axiosInstance: AxiosInstance,
-  options: SessionInterceptorOptions = {},
 ): SessionInterceptorIds {
-  const {
-    responseHeader = 'x-loki-trace-id',
-    requestHeader = 'x-loki-trace-id',
-    storageKey = 'lokiTraceId',
-    storage = new MemoryStorage(),
-    initialSessionId,
-    generateInitialId = false,
-  } = options;
-
-  // Seed storage so the first outgoing request already has a trace ID.
-  // IMPORTANT: only write if nothing is already stored — this ensures a page
-  // refresh within the same tab continues the same trace rather than resetting it.
-  // Priority: explicitly passed ID > auto-generated > nothing
+  // Seed storage so the first outgoing request already has a trace id.
+  // Only writes if nothing is stored yet — preserves the id across same-tab refreshes.
   void (async () => {
     try {
-      const existing = await storage.getItem(storageKey);
+      const existing = await traceStorage.getItem(STORAGE_KEY);
       if (!existing) {
-        if (initialSessionId) {
-          await storage.setItem(storageKey, initialSessionId);
-        } else if (generateInitialId) {
-          await storage.setItem(storageKey, generateHexId(32));
-        }
+        await traceStorage.setItem(STORAGE_KEY, generateHexId(16));
       }
     } catch {
-      /* Silently ignore — storage errors must never break the app */
+      // Storage errors must never crash the app
     }
   })();
 
-  // Request interceptor: inject stored trace ID into outgoing headers
   const requestId = axiosInstance.interceptors.request.use(
     async (config: InternalAxiosRequestConfig) => {
       try {
-        const traceId = await storage.getItem(storageKey);
+        const traceId = await traceStorage.getItem(STORAGE_KEY);
         if (traceId) {
-          config.headers[requestHeader] = traceId;
+          config.headers[TRACE_HEADER] = traceId;
         }
-      } catch (err) {
-        console.warn('[moondrop-logger-client] Failed to read trace ID:', err);
+      } catch {
+        // Silently skip — never block the request
       }
       return config;
     },
     (error) => Promise.reject(error),
   );
 
-  // Response interceptor: capture trace ID from response headers
   const responseId = axiosInstance.interceptors.response.use(
     async (response: AxiosResponse) => {
-      const traceId = response.headers?.[responseHeader.toLowerCase()];
+      const traceId = response.headers?.[TRACE_HEADER];
       if (traceId && typeof traceId === 'string') {
         try {
-          await storage.setItem(storageKey, traceId);
-        } catch (err) {
-          console.warn('[moondrop-logger-client] Failed to save trace ID:', err);
+          await traceStorage.setItem(STORAGE_KEY, traceId);
+        } catch {
+          // Silently skip — never crash on storage write
         }
       }
       return response;
     },
     async (error) => {
       // Still attempt to capture the trace ID from error responses (4xx / 5xx)
-      const traceId = error?.response?.headers?.[responseHeader.toLowerCase()];
+      const traceId = error?.response?.headers?.[TRACE_HEADER.toLowerCase()];
       if (traceId && typeof traceId === 'string') {
         try {
-          await storage.setItem(storageKey, traceId);
+          await traceStorage.setItem(STORAGE_KEY, traceId);
         } catch {
           /* ignore */
         }
@@ -113,20 +126,4 @@ export function attachSessionInterceptor(
   );
 
   return { requestId, responseId };
-}
-
-/** Generates a random lowercase hex string of the requested character length. */
-function generateHexId(length: number): string {
-  const bytes = new Uint8Array(Math.ceil(length / 2));
-  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
-    crypto.getRandomValues(bytes);
-  } else {
-    // Node.js fallback (for SSR edge cases / tests)
-    for (let i = 0; i < bytes.length; i++) {
-      bytes[i] = Math.floor(Math.random() * 256);
-    }
-  }
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0'))
-    .join('')
-    .slice(0, length);
 }

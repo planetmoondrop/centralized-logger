@@ -36,6 +36,30 @@ export function getCurrentSpanId(): string {
 }
 
 /**
+ * Attaches a custom key-value tag to the active request's trace context.
+ *
+ * The tag is stored inside the AsyncLocalStorage store for this request and is
+ * automatically included on every subsequent log line emitted within that same
+ * request lifecycle (from the point addTraceTag() is called until the response
+ * is sent).  Tags from different concurrent requests never bleed into each other
+ * because each request owns its own AsyncLocalStorage store.
+ *
+ * Call this anywhere within a request handler — service methods, guards,
+ * interceptors, TypeORM listeners — no need to pass anything explicitly.
+ *
+ * @example
+ * // inside a service method
+ * addTraceTag('listingId', listing.id);
+ * addTraceTag('orderId', order.id);
+ */
+export function addTraceTag(key: string, value: unknown): void {
+  const store = traceStorage.getStore();
+  if (!store) return;
+  if (!store.tags) store.tags = {};
+  store.tags[key] = value;
+}
+
+/**
  * Increments and returns the next sequence number for the current span.
  * Sequence numbers allow the trace viewer to display logs in exact emission
  * order, even when timestamps have millisecond-level collisions.

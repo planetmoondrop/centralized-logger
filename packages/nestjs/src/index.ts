@@ -11,6 +11,7 @@ export {
   getCurrentTraceId,
   getCurrentSpanId,
   nextSequence,
+  addTraceTag,
 } from './core/trace-context';
 
 // ── Global logger singleton (use without DI) ──────────────────────

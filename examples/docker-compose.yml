@@ -14,8 +14,6 @@
 #   3200  Tempo
 #   9090  Prometheus
 
-version: '3.9'
-
 services:
   # ── Observability: Loki ────────────────────────────────────────────────────
   loki:
@@ -80,7 +78,7 @@ services:
 
   # ── Observability: Grafana ─────────────────────────────────────────────────
   grafana:
-    image: grafana/grafana:10.3.1
+    image: grafana/grafana:10.4.7
     container_name: grafana
     restart: unless-stopped
     ports:

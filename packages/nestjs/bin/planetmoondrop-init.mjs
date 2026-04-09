@@ -7,10 +7,14 @@
  *   npx planetmoondrop init               (after installing the package in your project)
  *
  * What it does:
- *   1. Asks which observability features you want.
- *   2. Installs the OTEL SDK packages if tracing is selected.
- *   3. Generates src/planetmoondrop/tracing.ts in your project.
- *   4. Patches src/main.ts so it imports './planetmoondrop/tracing' as the very first line.
+ *   1. Asks for service name, Loki URL, optional OpenTelemetry tracing (core logging + /metrics are always on).
+ *   2. Adds @planetmoondrop/centralized-logger (+ winston, uuid) to your project's package.json
+ *      when missing (npx -p only downloads the CLI temporarily — it does not add the library).
+ *   3. Installs the OTEL SDK packages if tracing is selected.
+ *   4. Generates src/planetmoondrop/tracing.ts in your project.
+ *   5. Patches src/main.ts so it imports './planetmoondrop/tracing' as the very first line.
+ *   6. Inserts LokiLoggerModule.register() into app.module.ts when safe (skips if already present
+ *      or registerAsync — those need manual edits).
  */
 
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
@@ -69,6 +73,25 @@ function installCmd(pm, packages) {
   }
 }
 
+// ─── Core packages (must land in the target project, not only npx cache) ─────
+const CORE_PACKAGES = ['@planetmoondrop/centralized-logger', 'winston', 'uuid'];
+
+function readPackageJson(cwd) {
+  try {
+    return JSON.parse(readFileSync(join(cwd, 'package.json'), 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function projectDeclaresDep(pkgJson, name) {
+  return Boolean(
+    pkgJson.dependencies?.[name] ||
+    pkgJson.devDependencies?.[name] ||
+    pkgJson.optionalDependencies?.[name],
+  );
+}
+
 // ─── OTEL packages required for tracing ──────────────────────────────────────
 const OTEL_PACKAGES = [
   '@opentelemetry/sdk-node',
@@ -118,6 +141,56 @@ function patchMainTs(mainTsPath) {
   return true;
 }
 
+const LOKI_MODULE_IMPORT = `import { LokiLoggerModule } from '@planetmoondrop/centralized-logger';`;
+
+function buildLokiRegisterBlock(serviceName, lokiHost, wantsTracing) {
+  const lines = [
+    `      serviceName: ${JSON.stringify(serviceName)},`,
+    `      lokiHost: ${JSON.stringify(lokiHost)},`,
+    `      enableMetrics: true,`,
+  ];
+  if (wantsTracing) lines.push(`      enableTracing: true,`);
+  return `    LokiLoggerModule.register({\n${lines.join('\n')}\n    }),`;
+}
+
+/** @returns {{ ok: true } | { ok: false, reason: string }} */
+function patchAppModuleTs(appModulePath, serviceName, lokiHost, wantsTracing) {
+  if (!existsSync(appModulePath)) {
+    return { ok: false, reason: 'missing-file' };
+  }
+
+  let content = readFileSync(appModulePath, 'utf8');
+
+  if (/LokiLoggerModule\.register\s*\(/.test(content)) {
+    return { ok: false, reason: 'already-register' };
+  }
+  if (/LokiLoggerModule\.registerAsync\s*\(/.test(content)) {
+    return { ok: false, reason: 'already-async' };
+  }
+  if (!/\bimports\s*:\s*\[/.test(content)) {
+    return { ok: false, reason: 'no-imports-array' };
+  }
+
+  if (!/from\s+['"]@planetmoondrop\/centralized-logger['"]/.test(content)) {
+    const afterNestCommon = /(import\s+\{[^}]+\}\s+from\s+['"]@nestjs\/common['"];?\s*\n)/;
+    if (afterNestCommon.test(content)) {
+      content = content.replace(afterNestCommon, `$1${LOKI_MODULE_IMPORT}\n`);
+    } else {
+      content = `${LOKI_MODULE_IMPORT}\n${content}`;
+    }
+  }
+
+  const block = buildLokiRegisterBlock(serviceName, lokiHost, wantsTracing);
+  const updated = content.replace(/\bimports\s*:\s*\[/, (m) => `${m}\n${block}`);
+
+  if (updated === content) {
+    return { ok: false, reason: 'insert-failed' };
+  }
+
+  writeFileSync(appModulePath, updated, 'utf8');
+  return { ok: true };
+}
+
 // ─── Wizard ───────────────────────────────────────────────────────────────────
 async function main() {
   const cwd = process.cwd();
@@ -136,6 +209,10 @@ async function main() {
 
   const pm = detectPackageManager(cwd);
   info(`Detected package manager: ${c.bold}${pm}${c.reset}`);
+  br();
+  info(
+    `${c.bold}Included by default:${c.reset} Loki logging (structured JSON, trace IDs) + Prometheus ${c.dim}/metrics${c.reset} — no toggle needed.`,
+  );
   br();
 
   // ── Questions ───────────────────────────────────────────────────────────────
@@ -156,30 +233,10 @@ async function main() {
         validate: (v) => v.trim().length > 0 || 'Service name is required',
       },
       {
-        type: 'multiselect',
-        name: 'features',
-        message: 'Select features to enable (space to toggle, enter to confirm):',
-        hint: '- Space to select, Enter to confirm',
-        instructions: false,
-        choices: [
-          {
-            title: `${c.green}Core Logging${c.reset}  — Loki push, structured JSON, trace context`,
-            value: 'logging',
-            selected: true,
-            disabled: true, // always on
-          },
-          {
-            title: `${c.green}Metrics${c.reset}       — Prometheus /metrics, Node.js system health`,
-            value: 'metrics',
-            selected: true,
-            disabled: true, // always on (prom-client is a direct dep)
-          },
-          {
-            title: `${c.cyan}Tracing${c.reset}       — OpenTelemetry → Tempo waterfall, span correlation`,
-            value: 'tracing',
-            selected: false,
-          },
-        ],
+        type: 'confirm',
+        name: 'enableTracing',
+        message: 'Enable OpenTelemetry tracing (Tempo / OTLP, span correlation in logs)?',
+        initial: false,
       },
       {
         type: 'text',
@@ -188,7 +245,7 @@ async function main() {
         initial: process.env['LOKI_HOST'] ?? 'http://loki:3100',
       },
       {
-        type: (_, values) => (values.features?.includes('tracing') ? 'text' : null),
+        type: (_, values) => (values.enableTracing ? 'text' : null),
         name: 'otlpEndpoint',
         message: 'Tempo OTLP endpoint:',
         initial: process.env['OTEL_EXPORTER_OTLP_ENDPOINT'] ?? 'http://tempo:4318',
@@ -198,6 +255,12 @@ async function main() {
         name: 'mainTs',
         message: 'Path to your main.ts (relative to project root):',
         initial: 'src/main.ts',
+      },
+      {
+        type: 'text',
+        name: 'appModuleTs',
+        message: 'Path to your app.module.ts (relative to project root):',
+        initial: 'src/app.module.ts',
       },
     ],
     {
@@ -211,15 +274,38 @@ async function main() {
 
   br();
 
-  const wantsTracing = answers.features?.includes('tracing');
+  const wantsTracing = Boolean(answers.enableTracing);
   const serviceName = answers.serviceName.trim();
   const otlpEndpoint = answers.otlpEndpoint ?? 'http://tempo:4318';
   const mainTsRel = answers.mainTs ?? 'src/main.ts';
   const mainTsPath = resolve(cwd, mainTsRel);
+  const appModuleRel = answers.appModuleTs ?? 'src/app.module.ts';
+  const appModulePath = resolve(cwd, appModuleRel);
   // Place tracing.ts in a planetmoondrop/ subfolder next to main.ts (e.g. src/planetmoondrop/tracing.ts)
   const tracingPath = join(mainTsPath, '..', 'planetmoondrop', 'tracing.ts');
 
-  // ── Step 1: Install OTEL packages ──────────────────────────────────────────
+  const pkgJson = readPackageJson(cwd);
+  const hasCoreLogger = projectDeclaresDep(pkgJson, '@planetmoondrop/centralized-logger');
+
+  // ── Step 1: Core library + runtime deps (always, unless already in package.json) ──
+  if (!hasCoreLogger) {
+    const cmd = installCmd(pm, CORE_PACKAGES);
+    info(`Installing @planetmoondrop/centralized-logger, winston, uuid into this project...`);
+    info(`  ${c.dim}${cmd}${c.reset}`);
+    br();
+    try {
+      execSync(cmd, { cwd, stdio: 'inherit' });
+      br();
+      ok('Core logging packages installed');
+    } catch {
+      err('Package installation failed. Run the command above manually and re-run init.');
+      process.exit(1);
+    }
+  } else {
+    skip('@planetmoondrop/centralized-logger already in package.json — skipping core install');
+  }
+
+  // ── Step 2: Install OTEL packages ──────────────────────────────────────────
   if (wantsTracing) {
     const cmd = installCmd(pm, OTEL_PACKAGES);
     info(`Installing OpenTelemetry packages...`);
@@ -237,7 +323,7 @@ async function main() {
     skip('Tracing not selected — OTEL SDK packages skipped');
   }
 
-  // ── Step 2: Generate tracing.ts (sibling of main.ts) ─────────────────────
+  // ── Step 3: Generate tracing.ts (sibling of main.ts) ─────────────────────
   if (wantsTracing) {
     if (existsSync(tracingPath)) {
       skip(
@@ -252,7 +338,7 @@ async function main() {
     skip('tracing.ts not needed without tracing');
   }
 
-  // ── Step 3: Patch main.ts ───────────────────────────────────────────────────
+  // ── Step 4: Patch main.ts ───────────────────────────────────────────────────
   if (wantsTracing) {
     if (!existsSync(mainTsPath)) {
       warn(`${mainTsRel} not found — skipping main.ts patch`);
@@ -270,21 +356,46 @@ async function main() {
     skip('main.ts patch not needed without tracing');
   }
 
-  // ── Step 4: Print LokiLoggerModule config hint ─────────────────────────────
-  br();
-  console.log(`  ${c.bold}Next step — update your LokiLoggerModule.register() call:${c.reset}`);
-  br();
-  console.log(`  ${c.dim}LokiLoggerModule.register({${c.reset}`);
-  console.log(`  ${c.dim}  serviceName: '${serviceName}',${c.reset}`);
-  console.log(`  ${c.dim}  lokiHost: '${answers.lokiHost}',${c.reset}`);
-  console.log(`  ${c.dim}  enableMetrics: true,          // Prometheus /metrics${c.reset}`);
-  if (wantsTracing) {
-    console.log(
-      `  ${c.dim}  enableTracing: true,          // use OTEL span context in logs${c.reset}`,
-    );
+  // ── Step 5: Patch app.module.ts (LokiLoggerModule.register) ────────────────
+  const appPatch = patchAppModuleTs(appModulePath, serviceName, answers.lokiHost, wantsTracing);
+  if (appPatch.ok) {
+    ok(`Patched ${appModuleRel} — LokiLoggerModule.register() added to imports`);
+  } else {
+    const reasons = {
+      'missing-file': `${appModuleRel} not found`,
+      'already-register': `${appModuleRel} already contains LokiLoggerModule.register()`,
+      'already-async': `${appModuleRel} uses LokiLoggerModule.registerAsync() — merge options manually`,
+      'no-imports-array': `${appModuleRel} has no imports: [ ... ] we can patch`,
+      'insert-failed': `Could not insert into imports in ${appModuleRel}`,
+    };
+    skip(reasons[appPatch.reason] ?? appPatch.reason);
   }
-  console.log(`  ${c.dim}})${c.reset}`);
+
+  // ── Step 6: Remaining manual steps ────────────────────────────────────────
   br();
+  if (
+    !appPatch.ok &&
+    appPatch.reason !== 'already-register' &&
+    appPatch.reason !== 'already-async'
+  ) {
+    console.log(`  ${c.bold}Add to ${appModuleRel} — imports:${c.reset}`);
+    br();
+    const block = buildLokiRegisterBlock(serviceName, answers.lokiHost, wantsTracing);
+    console.log(`  ${c.dim}${LOKI_MODULE_IMPORT}${c.reset}`);
+    br();
+    console.log(`  ${c.dim}${block.split('\n').join('\n  ')}${c.reset}`);
+    br();
+  } else if (appPatch.ok || appPatch.reason === 'already-register') {
+    info(
+      `Ensure ${c.bold}main.ts${c.reset} calls ${c.cyan}LokiLoggerModule.apply(app)${c.reset} (and optionally mountViewer).`,
+    );
+    br();
+  } else {
+    console.log(
+      `  ${c.bold}Update LokiLoggerModule.registerAsync() factory${c.reset} with serviceName / lokiHost / enableMetrics / enableTracing as needed.`,
+    );
+    br();
+  }
 
   console.log(`  ${c.bold}${c.green}Setup complete!${c.reset}`);
   br();
