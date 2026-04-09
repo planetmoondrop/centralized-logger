@@ -72,6 +72,8 @@ const CORE_EXPORTS = [LOKI_LOGGER_OPTIONS, LokiLoggerService, TraceViewerService
 
 @Module({})
 export class LokiLoggerModule {
+  private static applied = false;
+
   // ── Sync registration ────────────────────────────────────────────
 
   static register(options: LokiLoggerOptions): DynamicModule {
@@ -117,8 +119,16 @@ export class LokiLoggerModule {
    */
   static apply(app: any): void {
     const logger = app.get(LokiLoggerService) as LokiLoggerService;
+
+    if (LokiLoggerModule.applied) {
+      logger.warn('LokiLoggerModule.apply() was called more than once — skipping duplicate setup', 'LokiLoggerModule');
+      return;
+    }
+    LokiLoggerModule.applied = true;
+
     const metrics = app.get(MetricsService) as MetricsService;
     const opts = logger.resolvedOptions;
+    const rawOptions = app.get(LOKI_LOGGER_OPTIONS) as LokiLoggerOptions;
 
     // 1. Global logger
     setLoggerRef(logger);
@@ -287,10 +297,21 @@ export class LokiLoggerModule {
     // Log options summary (excluding sensitive fields)
     logger.log(
       `Observability ready — service="${appName}" env="${env}" ` +
-        `metrics=${opts.enableMetrics} tracing=${opts.enableTracing} ` +
-        `apiKey=${opts.apiKey ? '✓ (set)' : '✗'}`,
+      `metrics=${opts.enableMetrics} tracing=${opts.enableTracing} ` +
+      `apiKey=${opts.apiKey ? '✓ (set)' : '✗'}`,
       'LokiLoggerModule',
     );
+
+    // Warn when trace viewer is on but traceViewerServices was not explicitly set —
+    // the default (current service only) hides cross-service traces in the viewer.
+    if (opts.enableTraceViewer && !rawOptions.traceViewerServices) {
+      logger.warn(
+        `Trace viewer is enabled but traceViewerServices is not set. ` +
+        `Only "${appName}" will be queried. ` +
+        `Set traceViewerServices: "${appName},other-service" to enable cross-service traces.`,
+        'LokiLoggerModule',
+      );
+    }
   }
 
   // ── mountViewer() ────────────────────────────────────────────────

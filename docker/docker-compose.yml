@@ -74,7 +74,7 @@ services:
 
   # ── Grafana UI ──────────────────────────────────────────────────────────────
   grafana:
-    image: grafana/grafana:10.3.1
+    image: grafana/grafana:10.4.7
     container_name: grafana
     restart: unless-stopped
     ports:
