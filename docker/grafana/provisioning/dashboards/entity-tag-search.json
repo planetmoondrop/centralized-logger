@@ -67,10 +67,10 @@
         "includeAll": false,
         "multi": false,
         "sort": 0,
-        "current": { "selected": true, "text": "No", "value": ".*" },
+        "current": { "selected": true, "text": "Yes", "value": "/metrics" },
         "options": [
-          { "selected": true, "text": "No", "value": ".*" },
-          { "selected": false, "text": "Yes", "value": "/metrics" }
+          { "selected": false, "text": "No", "value": ".*" },
+          { "selected": true, "text": "Yes", "value": "/metrics" }
         ],
         "hide": 0
       }

@@ -40,21 +40,6 @@
         "hide": 0
       },
       {
-        "name": "level",
-        "label": "Level",
-        "type": "custom",
-        "query": ".+,error,warn,info,debug",
-        "current": { "value": ".+", "text": "all" },
-        "options": [
-          { "text": "all", "value": ".+", "selected": true },
-          { "text": "error", "value": "error" },
-          { "text": "warn", "value": "warn" },
-          { "text": "info", "value": "info" },
-          { "text": "debug", "value": "debug" }
-        ],
-        "hide": 0
-      },
-      {
         "name": "min_duration",
         "label": "Min Duration (ms)>=",
         "type": "textbox",
@@ -76,16 +61,13 @@
       },
       {
         "name": "status_filter",
-        "label": "Status",
+        "label": "Status Code",
         "type": "custom",
-        "query": "all,2xx,4xx,5xx",
-        "current": { "value": "all", "text": "all" },
-        "options": [
-          { "text": "all", "value": "all", "selected": true },
-          { "text": "2xx", "value": "2xx" },
-          { "text": "4xx", "value": "4xx" },
-          { "text": "5xx", "value": "5xx" }
-        ],
+        "query": "All : .*, 2xx : 2[0-9][0-9], 3xx : 3[0-9][0-9], 4xx : 4[0-9][0-9], 5xx : 5[0-9][0-9]",
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
         "hide": 0
       },
       {
@@ -150,7 +132,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration [$__range]))",
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode =~ \"$status_filter\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -434,7 +416,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration |~ \"$search\" | line_format `{{.ip | default \"unknown\"}}  [{{.statusCode}}]  {{.method}}  {{.path}}  +{{.duration}}ms  svc={{.service}}  \"traceId\":\"{{.traceId}}\"`",
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode =~ \"$status_filter\" |~ \"$search\" | line_format `{{.ip | default \"unknown\"}}  [{{.statusCode}}]  {{.method}}  {{.path}}  +{{.duration}}ms  svc={{.service}}  \"traceId\":\"{{.traceId}}\"`",
           "refId": "A"
         }
       ]
@@ -460,7 +442,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | level = \"error\" |~ \"$search\"",
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | statusCode =~ \"$status_filter\" | level = \"error\" |~ \"$search\"",
           "refId": "A"
         }
       ]
@@ -486,7 +468,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= 600 | duration >= $min_duration | line_format `+{{.duration}}ms  [{{.statusCode}}]  {{.method}}  {{.path}}  svc={{.service}}  \"traceId\":\"{{.traceId}}\"`",
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= 600 | duration >= $min_duration | statusCode =~ \"$status_filter\" | line_format `+{{.duration}}ms  [{{.statusCode}}]  {{.method}}  {{.path}}  svc={{.service}}  \"traceId\":\"{{.traceId}}\"`",
           "refId": "A"
         }
       ]
@@ -538,7 +520,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_out\" |~ \"$search\"",
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | statusCode =~ \"$status_filter\" | logType = \"http_out\" |~ \"$search\"",
           "refId": "A"
         }
       ]
