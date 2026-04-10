@@ -3,7 +3,7 @@ import { Observable } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { throwError } from 'rxjs';
 import { LokiLoggerService } from '../core/loki-logger.service';
-
+import { filterUserStackTrace } from '../core/stack-trace-filter';
 import { getCurrentTrace } from '../core/trace-context';
 
 /**
@@ -57,7 +57,7 @@ export class LokiLoggingInterceptor implements NestInterceptor {
             traceId: trace?.traceId,
             spanId: trace?.spanId,
             duration,
-            stack: err?.stack,
+            stack: filterUserStackTrace(err?.stack),
           },
         );
         return throwError(() => err);

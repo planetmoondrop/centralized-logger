@@ -46,8 +46,8 @@ import { LokiLoggerModule } from '@planetmoondrop/centralized-logger';
   imports: [
     LokiLoggerModule.register({
       serviceName: 'auth-service',
-      lokiHost:    'http://loki:3100',
-      logLevel:    'info',
+      lokiHost: 'http://loki:3100',
+      logLevel: 'info',
     }),
   ],
 })
@@ -61,12 +61,16 @@ export class AppModule {}
 import { LokiLoggerModule } from '@planetmoondrop/centralized-logger';
 
 const app = await NestFactory.create(AppModule, { bufferLogs: true });
-LokiLoggerModule.apply(app);     // sets up trace middleware + global interceptor
+
+app.enableCors({ exposedHeaders: ['x-loki-trace-id', 'x-parent-span-id'] }); // expose headers
+LokiLoggerModule.apply(app); // sets up trace middleware + global interceptor
 LokiLoggerModule.mountViewer(app); // optional — built-in trace viewer UI
+
 await app.listen(3000);
 ```
 
 `apply()` does three things:
+
 1. Sets `LokiLoggerService` as the global NestJS logger so framework logs go through it.
 2. Registers trace middleware on every request — creates `traceId` + `spanId`, wraps the call stack in `AsyncLocalStorage`.
 3. Registers a global interceptor that logs handler entry/exit/error with full stack traces.
@@ -107,13 +111,13 @@ export class PaymentsService {
 ```ts
 LokiLoggerModule.registerAsync({
   imports: [ConfigModule],
-  inject:  [ConfigService],
+  inject: [ConfigService],
   useFactory: (config: ConfigService) => ({
     serviceName: config.get('SERVICE_NAME'),
-    lokiHost:    config.get('LOKI_HOST'),
-    logLevel:    config.get('LOG_LEVEL', 'info'),
+    lokiHost: config.get('LOKI_HOST'),
+    logLevel: config.get('LOG_LEVEL', 'info'),
   }),
-})
+});
 ```
 
 ## Cross-service trace propagation
@@ -141,9 +145,7 @@ export class OrdersService {
 
   async validateUser(userId: string) {
     // x-loki-trace-id and x-parent-span-id are injected automatically
-    const res = await firstValueFrom(
-      this.http.get(`http://auth-service/api/users/${userId}`)
-    );
+    const res = await firstValueFrom(this.http.get(`http://auth-service/api/users/${userId}`));
     return res.data;
   }
 }
@@ -159,30 +161,30 @@ TypeOrmModule.forRootAsync({
     logger: new TypeOrmLokiLogger(logger),
     logging: true,
   }),
-})
+});
 ```
 
 All DB queries, slow queries, and errors are logged to Loki with the traceId of the request that triggered them.
 
 ## Configuration options
 
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `serviceName` | `string` | required | Loki `app` label for this service |
-| `lokiHost` | `string` | required | Loki push URL e.g. `http://loki:3100` |
-| `environment` | `string` | `NODE_ENV` | Loki `env` label |
-| `logLevel` | `string` | `'info'` | Minimum log level |
-| `consoleOutput` | `boolean` | `true` | Print to stdout (always on in development) |
-| `jsonConsole` | `boolean` | `false` | JSON vs colourised console format |
-| `lokiBatchInterval` | `number` | `5000` | Loki push interval in ms |
-| `lokiRetries` | `number` | `3` | Retry attempts on Loki push failure |
-| `logRequestBody` | `boolean` | `false` | Log incoming request body (never in production) |
-| `traceHeader` | `string` | `'x-loki-trace-id'` | Header used to propagate trace ID |
-| `parentSpanHeader` | `string` | `'x-parent-span-id'` | Header used to propagate parent span |
-| `enableTraceViewer` | `boolean` | `false` | Mount built-in trace viewer UI |
-| `traceViewerPath` | `string` | `'/_trace'` | Mount path for the viewer |
-| `traceViewerServices` | `string` | `serviceName` | Comma-separated services to search across |
-| `extraLabels` | `object` | `{}` | Additional static Loki labels |
+| Option                | Type      | Default              | Description                                     |
+| --------------------- | --------- | -------------------- | ----------------------------------------------- |
+| `serviceName`         | `string`  | required             | Loki `app` label for this service               |
+| `lokiHost`            | `string`  | required             | Loki push URL e.g. `http://loki:3100`           |
+| `environment`         | `string`  | `NODE_ENV`           | Loki `env` label                                |
+| `logLevel`            | `string`  | `'info'`             | Minimum log level                               |
+| `consoleOutput`       | `boolean` | `true`               | Print to stdout; set `false` for Loki-only (no console) |
+| `jsonConsole`         | `boolean` | `false`              | JSON vs colourised console format               |
+| `lokiBatchInterval`   | `number`  | `5000`               | Loki push interval in ms                        |
+| `lokiRetries`         | `number`  | `3`                  | Retry attempts on Loki push failure             |
+| `logRequestBody`      | `boolean` | `false`              | Log incoming request body (never in production) |
+| `traceHeader`         | `string`  | `'x-loki-trace-id'`  | Header used to propagate trace ID               |
+| `parentSpanHeader`    | `string`  | `'x-parent-span-id'` | Header used to propagate parent span            |
+| `enableTraceViewer`   | `boolean` | `false`              | Mount built-in trace viewer UI                  |
+| `traceViewerPath`     | `string`  | `'/_trace'`          | Mount path for the viewer                       |
+| `traceViewerServices` | `string`  | `serviceName`        | Comma-separated services to search across       |
+| `extraLabels`         | `object`  | `{}`                 | Additional static Loki labels                   |
 
 ## Exports
 

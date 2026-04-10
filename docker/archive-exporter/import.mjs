@@ -16,6 +16,10 @@
  *     --loki http://localhost:3100 \
  *     --batch-size 500
  *
+ * The file is read fully into memory, grouped by Loki stream with sorted label keys,
+ * timestamps sorted ascending per stream, then pushed in chunks (avoids Loki
+ * "entry too far behind" / out-of-order rejections).
+ *
  * After import, view logs in Grafana Explore with:
  *   {archive="true"}                          ← all archived logs
  *   {archive="true", archive_date="2026-03-15"}
@@ -120,18 +124,37 @@ function postJSON(url, body) {
   });
 }
 
-// ─── Group entries by their original stream labels + add archive labels ───────
+// ─── Stable label map key (same logical stream regardless of key order) ─────
+function canonicalStream(labels, archiveMeta) {
+  const merged = { ...labels, ...archiveMeta };
+  const stream = {};
+  for (const k of Object.keys(merged).sort()) {
+    stream[k] = merged[k];
+  }
+  return stream;
+}
+
+// ─── Group by stream, sort timestamps ascending (Loki rejects out-of-order) ───
 function buildStreams(batch, archiveMeta) {
   const map = new Map();
 
   for (const entry of batch) {
-    // Merge original labels with archive labels
-    const key = JSON.stringify({ ...entry.labels, ...archiveMeta });
+    const stream = canonicalStream(entry.labels, archiveMeta);
+    const key = JSON.stringify(stream);
     if (!map.has(key)) {
-      map.set(key, { stream: { ...entry.labels, ...archiveMeta }, values: [] });
+      map.set(key, { stream, values: [] });
     }
-    // Loki push format: [timestamp_ns_string, log_line_string]
     map.get(key).values.push([String(entry.timestamp), entry.line]);
+  }
+
+  for (const s of map.values()) {
+    s.values.sort((a, b) => {
+      const x = BigInt(a[0]);
+      const y = BigInt(b[0]);
+      if (x < y) return -1;
+      if (x > y) return 1;
+      return 0;
+    });
   }
 
   return Array.from(map.values());
@@ -162,49 +185,40 @@ async function main() {
   const fileStream = createReadStream(args.file);
   const rl = createInterface({ input: fileStream.pipe(gunzip), crlfDelay: Infinity });
 
-  let batch = [];
-  let totalLines = 0;
-  let pushedBatches = 0;
-  let errors = 0;
-
-  const flushBatch = async () => {
-    if (batch.length === 0) return;
-    const streams = buildStreams(batch, archiveMeta);
-    if (!DRY_RUN) {
-      try {
-        await postJSON(`${LOKI_HOST}/loki/api/v1/push`, { streams });
-        pushedBatches++;
-      } catch (err) {
-        console.error(`[import] Push error (batch ${pushedBatches + 1}): ${err.message}`);
-        errors++;
-      }
-    } else {
-      pushedBatches++;
-    }
-    batch = [];
-  };
-
+  /** Full file first — avoids cross-batch out-of-order for the same Loki stream. */
+  const entries = [];
   for await (const rawLine of rl) {
     const trimmed = rawLine.trim();
     if (!trimmed) continue;
     try {
-      const entry = JSON.parse(trimmed);
-      batch.push(entry);
-      totalLines++;
+      entries.push(JSON.parse(trimmed));
     } catch {
       console.warn(`[import] Skipping malformed line: ${trimmed.slice(0, 80)}`);
-      continue;
-    }
-
-    if (batch.length >= BATCH_SIZE) {
-      await flushBatch();
-      if (totalLines % 5000 === 0) {
-        process.stdout.write(`\r[import] Pushed ${totalLines} lines (${errors} errors)...`);
-      }
     }
   }
 
-  await flushBatch();
+  const totalLines = entries.length;
+  let pushedBatches = 0;
+  let errors = 0;
+
+  const streams = buildStreams(entries, archiveMeta);
+
+  if (!DRY_RUN) {
+    for (const s of streams) {
+      for (let i = 0; i < s.values.length; i += BATCH_SIZE) {
+        const chunk = s.values.slice(i, i + BATCH_SIZE);
+        try {
+          await postJSON(`${LOKI_HOST}/loki/api/v1/push`, { streams: [{ stream: s.stream, values: chunk }] });
+          pushedBatches++;
+        } catch (err) {
+          console.error(`[import] Push error (${s.stream.app ?? 'stream'} chunk ${pushedBatches + 1}): ${err.message}`);
+          errors++;
+        }
+      }
+    }
+  } else {
+    pushedBatches = streams.reduce((n, s) => n + Math.ceil(s.values.length / BATCH_SIZE), 0);
+  }
 
   console.log(`\n[import] Complete — ${totalLines} lines, ${pushedBatches} batches, ${errors} errors`);
   if (errors > 0) {

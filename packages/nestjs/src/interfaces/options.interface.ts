@@ -48,9 +48,9 @@ export interface LokiLoggerOptions {
   logLevel?: 'debug' | 'info' | 'warn' | 'error';
 
   /**
-   * Whether to also print logs to stdout.
-   * Always true in 'development' environment regardless of this setting.
-   * @default true
+   * Whether to print logs to stdout (human-readable or JSON via `jsonConsole`).
+   * When false, logs are still pushed to Loki only.
+   * @default false
    */
   consoleOutput?: boolean;
 

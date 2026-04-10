@@ -16,6 +16,7 @@ import { LokiLoggerService } from './core/loki-logger.service';
 import { TraceViewerService } from './viewer/trace-viewer.service';
 import { MetricsService } from './metrics/metrics.service';
 import { traceStorage } from './core/trace-context';
+import { filterUserStackTrace } from './core/stack-trace-filter';
 import { getActiveOtelContext } from './otel/init';
 
 type Req = import('express').Request;
@@ -268,7 +269,12 @@ export class LokiLoggerModule {
               `Error ${name} +${duration}ms — ${err?.message}`,
               'interceptor',
               'Interceptor',
-              { traceId: trace?.traceId, spanId: trace?.spanId, duration, stack: err?.stack },
+              {
+                traceId: trace?.traceId,
+                spanId: trace?.spanId,
+                duration,
+                stack: filterUserStackTrace(err?.stack),
+              },
             );
             return throwError(() => err);
           }),

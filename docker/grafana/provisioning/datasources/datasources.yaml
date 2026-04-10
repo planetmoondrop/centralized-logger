@@ -13,19 +13,19 @@ datasources:
       # ── Loki → Tempo: click any traceId / spanId to open trace ────────────
       derivedFields:
         - name: TraceID
-          # Matches both OTEL 32-char hex (new default) and UUID-format IDs
-          matcherRegex: '"traceId"\s*:\s*"([a-f0-9]{32}|[a-f0-9\-]{36})"'
+          # Matches OTEL 32-char hex, UUID-format IDs; hex is case-insensitive (a-f and A-F)
+          matcherRegex: '"traceId"\s*:\s*"([a-fA-F0-9]{32}|[a-fA-F0-9\-]{36})"'
           url: '${__value.raw}'
           datasourceUid: tempo
           urlDisplayLabel: "🔍 Open in Tempo"
         - name: SpanID
-          matcherRegex: '"spanId"\s*:\s*"([a-f0-9]{16}|[a-f0-9\-]{36})"'
+          matcherRegex: '"spanId"\s*:\s*"([a-fA-F0-9]{16}|[a-fA-F0-9\-]{36})"'
           url: '${__value.raw}'
           datasourceUid: tempo
           urlDisplayLabel: "🔗 Open span in Tempo"
         - name: TraceJourney
-          # Convenience link to the Trace Journey Explorer dashboard
-          matcherRegex: '"traceId"\s*:\s*"([a-f0-9]{32}|[a-f0-9\-]{36})"'
+          # Same capture as TraceID; opens Trace Journey Explorer with var-traceId
+          matcherRegex: '"traceId"\s*:\s*"([a-fA-F0-9]{32}|[a-fA-F0-9\-]{36})"'
           url: '/d/trace-journey?var-traceId=${__value.raw}'
           urlDisplayLabel: "📋 Full trace journey"
 

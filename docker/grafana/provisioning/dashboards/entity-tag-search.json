@@ -16,7 +16,7 @@
         "label": "Tag field",
         "description": "The tag key to search by, e.g. listingId, orderId, userId, invoiceId",
         "type": "textbox",
-        "current": { "value": "listingId" },
+        "current": { "value": "" },
         "hide": 0
       },
       {

@@ -29,11 +29,17 @@
         "hide": 0
       },
       {
-        "name": "services",
-        "label": "Services (regex)",
-        "description": "Restrict to matching app labels, e.g. ^auth-service$ or backend|worker",
-        "type": "textbox",
-        "current": { "value": ".+" },
+        "name": "app",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({app=~\".+\"}, app)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
         "hide": 0
       },
       {
@@ -575,10 +581,35 @@
     },
 
     {
+      "id": 32,
+      "type": "logs",
+      "title": "Errors",
+      "description": "level=error including stack traces when present.",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 58 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | level = \"error\" | spanId =~ \"$spanId\"",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
       "id": 105,
       "type": "row",
       "title": "Full log stream",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 58 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 59 },
       "collapsed": false
     },
 
@@ -587,7 +618,7 @@
       "type": "timeseries",
       "title": "Log activity in time range",
       "description": "Count of log lines per step; useful to see when the trace was active relative to the dashboard time window.",
-      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 59 },
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 64 },
       "datasource": { "type": "loki", "uid": "loki" },
       "fieldConfig": {
         "defaults": {
@@ -621,7 +652,7 @@
       "type": "logs",
       "title": "All log lines (chronological)",
       "description": "Every line for this trace, ascending by time. Expand rows for JSON fields. Span filter: regex on spanId (default .*). Derived fields in the Loki datasource link traceId/spanId to Tempo and this dashboard.",
-      "gridPos": { "h": 24, "w": 24, "x": 0, "y": 64 },
+      "gridPos": { "h": 24, "w": 24, "x": 0, "y": 88 },
       "datasource": { "type": "loki", "uid": "loki" },
       "options": {
         "showTime": true,
@@ -666,7 +697,7 @@
       "id": 106,
       "type": "row",
       "title": "Focused views",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 88 },
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 89 },
       "collapsed": false
     },
 
@@ -675,7 +706,7 @@
       "type": "logs",
       "title": "DB queries",
       "description": "logType=db — SQL text, duration when available, spanId for correlation.",
-      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 89 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 90 },
       "datasource": { "type": "loki", "uid": "loki" },
       "options": {
         "showTime": true,
@@ -696,36 +727,11 @@
     },
 
     {
-      "id": 33,
-      "type": "logs",
-      "title": "Errors",
-      "description": "level=error including stack traces when present.",
-      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 89 },
-      "datasource": { "type": "loki", "uid": "loki" },
-      "options": {
-        "showTime": true,
-        "showLabels": true,
-        "wrapLogMessage": true,
-        "prettifyLogMessage": true,
-        "enableLogDetails": true,
-        "sortOrder": "Ascending",
-        "dedupStrategy": "none"
-      },
-      "targets": [
-        {
-          "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | level = \"error\" | spanId =~ \"$spanId\"",
-          "refId": "A"
-        }
-      ]
-    },
-
-    {
       "id": 34,
       "type": "logs",
       "title": "Outbound HTTP calls",
       "description": "logType=http_out — downstream URL, method, status, duration.",
-      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 101 },
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 102 },
       "datasource": { "type": "loki", "uid": "loki" },
       "options": {
         "showTime": true,

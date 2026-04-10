@@ -53,23 +53,35 @@ try {
 
 // ─── Package manager detection ────────────────────────────────────────────────
 function detectPackageManager(cwd) {
-  if (existsSync(join(cwd, 'pnpm-lock.yaml'))) return 'pnpm';
-  if (existsSync(join(cwd, 'yarn.lock'))) return 'yarn';
-  if (existsSync(join(cwd, 'bun.lockb'))) return 'bun';
+  let dir = cwd;
+  for (let i = 0; i < 8 && dir; i++) {
+    if (existsSync(join(dir, 'pnpm-lock.yaml'))) return 'pnpm';
+    if (existsSync(join(dir, 'yarn.lock'))) return 'yarn';
+    if (existsSync(join(dir, 'bun.lockb'))) return 'bun';
+    const parent = resolve(dir, '..');
+    if (parent === dir) break;
+    dir = parent;
+  }
   return 'npm';
 }
 
+/**
+ * Skip lifecycle scripts during install so monorepo postinstall / husky / prepare
+ * does not run (often fails on Windows: husky not in PATH, EPERM on node_modules).
+ * OTEL packages do not require install scripts to work.
+ */
 function installCmd(pm, packages) {
   const pkgList = packages.join(' ');
   switch (pm) {
     case 'pnpm':
-      return `pnpm add ${pkgList}`;
+      return `pnpm add ${pkgList} --ignore-scripts`;
     case 'yarn':
-      return `yarn add ${pkgList}`;
+      return `yarn add ${pkgList} --ignore-scripts`;
     case 'bun':
+      // bun add does not document --ignore-scripts on all versions; omit to avoid CLI errors
       return `bun add ${pkgList}`;
     default:
-      return `npm install ${pkgList}`;
+      return `npm install ${pkgList} --ignore-scripts`;
   }
 }
 
@@ -298,7 +310,7 @@ async function main() {
       br();
       ok('Core logging packages installed');
     } catch {
-      err('Package installation failed. Run the command above manually and re-run init.');
+      err('Package installation failed. Run the command above manually (add --ignore-scripts if husky/postinstall errors), then re-run init.');
       process.exit(1);
     }
   } else {
@@ -316,7 +328,7 @@ async function main() {
       br();
       ok('OpenTelemetry packages installed');
     } catch {
-      err('Package installation failed. Run the command above manually and re-run init.');
+      err('Package installation failed. Run the command above manually (add --ignore-scripts if husky/postinstall errors), then re-run init.');
       process.exit(1);
     }
   } else {
