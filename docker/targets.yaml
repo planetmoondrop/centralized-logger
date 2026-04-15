@@ -1,0 +1,56 @@
+# ══════════════════════════════════════════════════════════════════════════════
+# Prometheus Scrape Targets
+# ══════════════════════════════════════════════════════════════════════════════
+#
+# ✏️  THIS is the file you edit to register your services.
+#     prometheus.yml is NOT touched — this file is hot-reloaded every 30s.
+#
+# FORMAT:
+#   - targets: ['<hostname>:<port>']      ← Docker Compose: use service name
+#     labels:
+#       app: '<service-name>'             ← must match Docker label `app`
+#       env: 'production'                 ← matches Loki/Grafana env label
+#
+# EXAMPLES:
+#   Docker Compose (same network):   targets: ['auth-service:3001']
+#   External host:                   targets: ['192.168.1.50:3001']
+#   Kubernetes pod FQDN:             targets: ['auth-service.default.svc.cluster.local:3001']
+#
+# ── Your services ─────────────────────────────────────────────────────────────
+
+- targets: ['auth-service:3001']
+  labels:
+    app: 'auth-service'
+    env: 'production'
+
+- targets: ['customer-support:3002']
+  labels:
+    app: 'customer-support'
+    env: 'production'
+
+- targets: ['backend:3003']
+  labels:
+    app: 'backend'
+    env: 'production'
+
+# ── Domain example ────────────────────────────────────────────────────────────
+# Public domain pointing to your service
+
+- targets: ['api.mycompany.com:443']
+  labels:
+    app: 'api-service'
+    env: 'production'
+
+# ── IP:PORT example ───────────────────────────────────────────────────────────
+# External VM / bare metal service
+
+# Example Host IP:PORT
+- targets: ['10.0.0.1:3001']
+  labels:
+    app: 'external-auth-service'
+    env: 'production'
+# ── Add more services below ↓ ───────────────────────────────────────────────────────────
+# - targets: ['my-new-service:3004']
+#   labels:
+#     app: 'my-new-service'
+#     env: 'production'

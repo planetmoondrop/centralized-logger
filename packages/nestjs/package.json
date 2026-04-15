@@ -1,6 +1,6 @@
 {
   "name": "@planetmoondrop/centralized-logger",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "Centralized Grafana Loki logging for NestJS microservices with distributed tracing, hierarchy, and zero-config setup.",
   "author": "Planetmoondrop planetmoondrop@gmail.com",
   "license": "MIT",

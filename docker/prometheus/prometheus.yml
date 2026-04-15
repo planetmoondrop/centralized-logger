@@ -11,7 +11,6 @@ global:
 
 # ── Scrape targets ─────────────────────────────────────────────────────────────
 scrape_configs:
-
   # Prometheus self-monitoring
   - job_name: 'prometheus'
     static_configs:
@@ -21,34 +20,19 @@ scrape_configs:
   # Each service that calls LokiLoggerModule.register({ enableMetrics: true })
   # exposes GET /metrics in Prometheus text format.
   #
-  # Add your services here. For Docker Compose deployments use the service name
-  # as the hostname (e.g. auth-service:3001).  For Kubernetes use the pod FQDN.
+  # ✏️  DO NOT edit targets here. Add your services in:
+  #     prometheus/targets.yaml
   #
-  # Template:
-  #   - targets: ['<service-hostname>:<port>']
-  #     labels:
-  #       app: '<service-name>'
-  #       env: 'production'
+  # That file is hot-reloaded every 30s — no restart needed.
   #
   - job_name: 'nestjs-services'
     metrics_path: '/metrics'
     scrape_interval: 10s
-    static_configs:
-      # ── Example services (update to match your actual services) ──────────
-      - targets: ['auth-service:3001']
-        labels:
-          app: 'auth-service'
-          env: 'development'
-      - targets: ['customer-support:3002']
-        labels:
-          app: 'customer-support'
-          env: 'development'
-      - targets: ['backend:3003']
-        labels:
-          app: 'backend'
-          env: 'development'
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets.yaml
+        refresh_interval: 30s
     relabel_configs:
-      # Preserve the 'app' label from static_configs as a Prometheus label
       - source_labels: [app]
         target_label: app
       - source_labels: [env]
