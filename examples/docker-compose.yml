@@ -65,6 +65,7 @@ services:
       - '--web.enable-lifecycle'
     volumes:
       - ../docker/services/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../docker/targets.yaml:/etc/prometheus/targets.yaml:ro
       - prometheus-data:/prometheus
     healthcheck:
       test:

@@ -6,22 +6,23 @@ RUN npm install -g pnpm
 # ---- Dependencies ----
 FROM base AS deps
 # Copy only the pnpm files and package.json for dependency resolution
-COPY package.json .npmrc ./
+COPY examples/frontend/package.json examples/frontend/.npmrc* ./
 # Generate lock file and install production dependencies
-RUN pnpm install --prod --no-frozen-lockfile
+RUN CI=true pnpm install --prod --no-frozen-lockfile
 
 # ---- Builder ----
 FROM base AS builder
 WORKDIR /app
-COPY . .
+COPY examples/frontend/ .
 # Install all dependencies including dev
-RUN pnpm install --no-frozen-lockfile
+RUN CI=true pnpm install --no-frozen-lockfile
 RUN pnpm run build
 
 # ---- Production ----
 FROM public.ecr.aws/docker/library/node:lts-alpine AS prod
 WORKDIR /app
 ENV NODE_ENV=production
+ENV CI=true
 
 # Install openssl for crypto support
 RUN apk add --no-cache openssl

@@ -6,14 +6,15 @@ RUN npm install -g pnpm
 # ---- Dependencies ----
 FROM base AS deps
 # Copy only the pnpm files and package.json for dependency resolution
-COPY package.json .npmrc ./
+COPY examples/backend/package.json examples/backend/.npmrc* ./
 # Install only production dependencies
-RUN pnpm install --prod
+RUN CI=true pnpm install --prod
 
 # ---- Builder ----
 FROM base AS builder
 WORKDIR /app
-COPY . .
+COPY examples/backend/ .
+ENV CI=true
 RUN pnpm install
 RUN pnpm run build
 
@@ -21,6 +22,7 @@ RUN pnpm run build
 FROM public.ecr.aws/docker/library/node:lts-alpine AS prod
 WORKDIR /app
 ENV NODE=production
+ENV CI=true
 
 # Install openssl for crypto support
 RUN apk add --no-cache openssl
