@@ -5,6 +5,58 @@ import * as https from 'https';
 import { LokiLoggerOptions, LOKI_LOGGER_OPTIONS, LogType } from '../interfaces';
 import { traceStorage, nextSequence } from './trace-context';
 
+function stripAnsi(value: string): string {
+  return value.replace(/\x1b\[[0-9;]*m/g, '');
+}
+
+function formatDefaultConsoleLine(info: Record<string, unknown>): string {
+  const {
+    timestamp,
+    level,
+    message,
+    traceId,
+    spanId,
+    context,
+    duration,
+    sequence,
+    logType,
+    ...rest
+  } = info;
+  const parts: string[] = [`${timestamp} ${level}`];
+  if (context) parts.push(`[${String(context)}]`);
+  if (traceId) parts.push(`[T:${String(traceId).slice(0, 8)}]`);
+  if (spanId) parts.push(`[S:${String(spanId).slice(0, 8)}]`);
+  if (sequence !== undefined) parts.push(`#${String(sequence)}`);
+  parts.push(String(message));
+  if (duration !== undefined) parts.push(`+${String(duration)}ms`);
+  const extra = Object.entries(rest).filter(
+    ([k]) =>
+      !['service', 'path', 'method', 'userId', 'parentSpanId', 'statusCode', 'logType'].includes(k),
+  );
+  if (extra.length) parts.push(JSON.stringify(Object.fromEntries(extra)));
+  return parts.join(' ');
+}
+
+function formatAccessConsoleLine(info: Record<string, unknown>): string {
+  const ts = String(info.timestamp ?? '');
+  const traceId = info.traceId ? String(info.traceId).slice(0, 8) : '-';
+  const spanId = info.spanId ? String(info.spanId).slice(0, 8) : '-';
+  const level = stripAnsi(String(info.level ?? 'info')).toUpperCase();
+  const logType = String(info.logType ?? 'service');
+
+  if (logType === 'http_in' || logType === 'http_in_res') {
+    const status = info.statusCode ?? '-';
+    const method = info.method ?? '-';
+    const path = info.path ?? '-';
+    const ip = info.ip ?? '-';
+    const duration = info.duration !== undefined ? ` +${info.duration}ms` : '';
+    return `${ts} ${traceId} ${spanId} ${level} ${status} ${method} ${path} ${ip}${duration}`;
+  }
+
+  const context = info.context ? `[${String(info.context)}] ` : '';
+  return `${ts} ${traceId} ${spanId} ${level} - - - - ${context}${String(info.message ?? '')}`;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 const TransportStream = require('winston-transport') as new (opts?: object) => winston.transport;
 
@@ -154,6 +206,9 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
       logLevel: 'info',
       consoleOutput: false,
       jsonConsole: false,
+      consoleFormat: 'default',
+      nestLoggerMode: 'replace',
+      httpAccessLog: 'dual',
       lokiBatchInterval: 5000,
       lokiRetries: 3,
       lokiBufferSize: 5000,
@@ -177,40 +232,26 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
 
     // Console is optional: Loki uses its own transport. Same log events go to all transports.
     if (opts.consoleOutput) {
+      const consolePrintf = winston.format.printf((info) =>
+        opts.consoleFormat === 'access'
+          ? formatAccessConsoleLine(info as Record<string, unknown>)
+          : formatDefaultConsoleLine(info as Record<string, unknown>),
+      );
+
       transports.push(
         new winston.transports.Console({
           format: opts.jsonConsole
             ? winston.format.combine(winston.format.timestamp(), winston.format.json())
-            : winston.format.combine(
-              winston.format.colorize({ all: true }),
-              winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
-              winston.format.printf(
-                ({
-                  timestamp,
-                  level,
-                  message,
-                  traceId,
-                  spanId,
-                  context,
-                  duration,
-                  sequence,
-                  ...rest
-                }) => {
-                  const parts: string[] = [`${timestamp} ${level}`];
-                  if (context) parts.push(`[${String(context)}]`);
-                  if (traceId) parts.push(`[T:${String(traceId).slice(0, 8)}]`);
-                  if (spanId) parts.push(`[S:${String(spanId).slice(0, 8)}]`);
-                  if (sequence !== undefined) parts.push(`#${String(sequence)}`);
-                  parts.push(String(message));
-                  if (duration !== undefined) parts.push(`+${String(duration)}ms`);
-                  const extra = Object.entries(rest).filter(
-                    ([k]) => !['service', 'path', 'method', 'userId', 'parentSpanId'].includes(k),
-                  );
-                  if (extra.length) parts.push(JSON.stringify(Object.fromEntries(extra)));
-                  return parts.join(' ');
-                },
+            : opts.consoleFormat === 'access'
+              ? winston.format.combine(
+                winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
+                consolePrintf,
+              )
+              : winston.format.combine(
+                winston.format.colorize({ all: true }),
+                winston.format.timestamp({ format: 'HH:mm:ss.SSS' }),
+                consolePrintf,
               ),
-            ),
         }),
       );
     }

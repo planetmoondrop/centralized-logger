@@ -99,8 +99,8 @@ function readPackageJson(cwd) {
 function projectDeclaresDep(pkgJson, name) {
   return Boolean(
     pkgJson.dependencies?.[name] ||
-      pkgJson.devDependencies?.[name] ||
-      pkgJson.optionalDependencies?.[name],
+    pkgJson.devDependencies?.[name] ||
+    pkgJson.optionalDependencies?.[name],
   );
 }
 
@@ -109,7 +109,7 @@ const OTEL_PACKAGES = [
   '@opentelemetry/sdk-node',
   '@opentelemetry/exporter-trace-otlp-http',
   '@opentelemetry/auto-instrumentations-node',
-  '@opentelemetry/resources',
+  '@opentelemetry/resources@1.30.0',
   '@opentelemetry/semantic-conventions',
 ];
 
@@ -310,7 +310,9 @@ async function main() {
       br();
       ok('Core logging packages installed');
     } catch {
-      err('Package installation failed. Run the command above manually (add --ignore-scripts if husky/postinstall errors), then re-run init.');
+      err(
+        'Package installation failed. Run the command above manually (add --ignore-scripts if husky/postinstall errors), then re-run init.',
+      );
       process.exit(1);
     }
   } else {
@@ -328,7 +330,9 @@ async function main() {
       br();
       ok('OpenTelemetry packages installed');
     } catch {
-      err('Package installation failed. Run the command above manually (add --ignore-scripts if husky/postinstall errors), then re-run init.');
+      err(
+        'Package installation failed. Run the command above manually (add --ignore-scripts if husky/postinstall errors), then re-run init.',
+      );
       process.exit(1);
     }
   } else {
@@ -385,7 +389,11 @@ async function main() {
 
   // ── Step 6: Remaining manual steps ────────────────────────────────────────
   br();
-  if (!appPatch.ok && appPatch.reason !== 'already-register' && appPatch.reason !== 'already-async') {
+  if (
+    !appPatch.ok &&
+    appPatch.reason !== 'already-register' &&
+    appPatch.reason !== 'already-async'
+  ) {
     console.log(`  ${c.bold}Add to ${appModuleRel} — imports:${c.reset}`);
     br();
     const block = buildLokiRegisterBlock(serviceName, answers.lokiHost, wantsTracing);
@@ -394,10 +402,14 @@ async function main() {
     console.log(`  ${c.dim}${block.split('\n').join('\n  ')}${c.reset}`);
     br();
   } else if (appPatch.ok || appPatch.reason === 'already-register') {
-    info(`Ensure ${c.bold}main.ts${c.reset} calls ${c.cyan}LokiLoggerModule.apply(app)${c.reset} (and optionally mountViewer).`);
+    info(
+      `Ensure ${c.bold}main.ts${c.reset} calls ${c.cyan}LokiLoggerModule.apply(app)${c.reset} (and optionally mountViewer).`,
+    );
     br();
   } else {
-    console.log(`  ${c.bold}Update LokiLoggerModule.registerAsync() factory${c.reset} with serviceName / lokiHost / enableMetrics / enableTracing as needed.`);
+    console.log(
+      `  ${c.bold}Update LokiLoggerModule.registerAsync() factory${c.reset} with serviceName / lokiHost / enableMetrics / enableTracing as needed.`,
+    );
     br();
   }
 

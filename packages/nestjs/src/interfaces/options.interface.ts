@@ -62,6 +62,44 @@ export interface LokiLoggerOptions {
   jsonConsole?: boolean;
 
   /**
+   * Console line layout when `consoleOutput` is true and `jsonConsole` is false.
+   *
+   * - `'default'` — colourised lines with context, trace/span shorthand, and metadata JSON.
+   * - `'access'` — compact access-log style:
+   *   `timestamp traceId spanId LEVEL STATUS METHOD PATH IP`
+   *
+   * @default 'default'
+   */
+  consoleFormat?: 'default' | 'access';
+
+  /**
+   * How NestJS framework logs (NestFactory, RoutesResolver, etc.) interact with
+   * LokiLoggerService. Call `LokiLoggerModule.apply()` after `NestFactory.create()`.
+   *
+   * - `'replace'` — LokiLoggerService becomes the global Nest logger. Use
+   *   `NestFactory.create(AppModule, { bufferLogs: true })` so bootstrap logs
+   *   are replayed through moondrop instead of Nest's default console format.
+   * - `'nest'` — Keep Nest's built-in logger for framework output. Your app
+   *   code and HTTP access logs still use LokiLoggerService / Loki format.
+   * - `'silent'` — Do not wire Nest to LokiLoggerService. Pass
+   *   `{ logger: false }` to `NestFactory.create()` to suppress framework logs.
+   *
+   * @default 'replace'
+   */
+  nestLoggerMode?: 'replace' | 'nest' | 'silent';
+
+  /**
+   * HTTP request/response access logging emitted by trace middleware.
+   *
+   * - `'dual'` — log on request start (`http_in`) and response finish (`http_in_res`).
+   * - `'response'` — single line per request when the response completes.
+   * - `'off'` — no HTTP access lines (trace context + metrics still run).
+   *
+   * @default 'dual'
+   */
+  httpAccessLog?: 'dual' | 'response' | 'off';
+
+  /**
    * How often (ms) buffered logs are pushed to Loki.
    * @default 5000
    */
