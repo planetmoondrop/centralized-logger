@@ -112,7 +112,7 @@ export class LokiLoggerModule {
    * Call after NestFactory.create(), before app.listen().
    *
    * What it sets up:
-   *  1. LokiLoggerService as the global NestJS logger (when nestLoggerMode: 'replace').
+   *  1. LokiLoggerService as the global NestJS logger.
    *  2. Trace middleware — creates / continues an OTEL-compatible hex traceId
    *     and spanId, wraps the entire async call stack in AsyncLocalStorage.
    *  3. Global interceptor — logs handler entry, exit, duration, and errors.
@@ -133,18 +133,7 @@ export class LokiLoggerModule {
 
     // 1. Global logger
     setLoggerRef(logger);
-    if (opts.nestLoggerMode === 'replace') {
-      app.useLogger(logger);
-      if (typeof app.flushLogs === 'function') {
-        app.flushLogs();
-      }
-    } else if (opts.nestLoggerMode === 'silent') {
-      logger.debug(
-        'nestLoggerMode is "silent" — Nest framework logs are disabled. ' +
-          'Use NestFactory.create(AppModule, { logger: false }) if you have not already.',
-        'LokiLoggerModule',
-      );
-    }
+    app.useLogger(logger);
 
     const traceHeader = opts.traceHeader;
     const parentSpanHeader = opts.parentSpanHeader;
@@ -223,9 +212,7 @@ export class LokiLoggerModule {
           if (Object.keys(req.query).length) inMeta.query = req.query;
           if (opts.logRequestBody && (req as any).body) inMeta.body = (req as any).body;
 
-          if (opts.httpAccessLog === 'dual') {
-            logger.logWithType('info', `→ ${req.method} ${req.path}`, 'http_in', 'HTTP', inMeta);
-          }
+          // logger.logWithType('info', `→ ${req.method} ${req.path}`, 'http_in', 'HTTP', inMeta);
 
           res.on('finish', () => {
             const duration = Date.now() - startTime;
@@ -236,20 +223,15 @@ export class LokiLoggerModule {
             metrics.recordRequest(req.method, route, status, duration, appName, env);
             metrics.decInFlight(appName, env);
 
-            if (opts.httpAccessLog === 'off') return;
-
             const outMeta: Record<string, unknown> = { statusCode: status, duration, ip };
             if (opts.logResponseBody && (res as any).__responseBody) {
               outMeta.responseBody = (res as any).__responseBody;
             }
 
-            const msg =
-              opts.httpAccessLog === 'response'
-                ? `${req.method} ${req.path}`
-                : `← ${req.method} ${req.path} ${status}`;
-            if (status >= 500) logger.logWithType('error', msg, 'http_in_res', 'HTTP', outMeta);
-            else if (status >= 400) logger.logWithType('warn', msg, 'http_in_res', 'HTTP', outMeta);
-            else logger.logWithType('info', msg, 'http_in_res', 'HTTP', outMeta);
+            const msg = `← ${req.method} ${req.path} ${status} +${duration}ms`;
+            if (status >= 500) logger.logWithType('error', msg, 'http_in_res', 'HTTP', inMeta);
+            else if (status >= 400) logger.logWithType('warn', msg, 'http_in_res', 'HTTP', inMeta);
+            else logger.logWithType('info', msg, 'http_in_res', 'HTTP', inMeta);
           });
 
           next();
@@ -321,9 +303,8 @@ export class LokiLoggerModule {
     // Log options summary (excluding sensitive fields)
     logger.log(
       `Observability ready — service="${appName}" env="${env}" ` +
-        `metrics=${opts.enableMetrics} tracing=${opts.enableTracing} ` +
-        `nestLogger=${opts.nestLoggerMode} httpAccess=${opts.httpAccessLog} ` +
-        `apiKey=${opts.apiKey ? '✓ (set)' : '✗'}`,
+      `metrics=${opts.enableMetrics} tracing=${opts.enableTracing} ` +
+      `apiKey=${opts.apiKey ? '✓ (set)' : '✗'}`,
       'LokiLoggerModule',
     );
 
@@ -332,8 +313,8 @@ export class LokiLoggerModule {
     if (opts.enableTraceViewer && !rawOptions.traceViewerServices) {
       logger.warn(
         `Trace viewer is enabled but traceViewerServices is not set. ` +
-          `Only "${appName}" will be queried. ` +
-          `Set traceViewerServices: "${appName},other-service" to enable cross-service traces.`,
+        `Only "${appName}" will be queried. ` +
+        `Set traceViewerServices: "${appName},other-service" to enable cross-service traces.`,
         'LokiLoggerModule',
       );
     }
