@@ -1,0 +1,25 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+pnpm exec commitlint --edit "$1"
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Invalid commit message"
+  echo ""
+  echo "Use one of:"
+  echo "  feat: add pino transport support"
+  echo "  fix: resolve memory leak in buffer"
+  echo "  docs: update installation guide"
+  echo "  refactor: simplify logger factory"
+  echo "  perf: optimize transport pipeline"
+  echo "  test: add integration tests"
+  echo "  build: update tsup configuration"
+  echo "  ci: add npm publish workflow"
+  echo "  chore: bump dependencies"
+  echo ""
+  echo "Format:"
+  echo "  <type>: <description>"
+  echo ""
+  exit 1
+fi

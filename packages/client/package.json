@@ -1,6 +1,6 @@
 {
   "name": "@planetmoondrop/logger-client",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Axios interceptor to manage x-loki-trace-id header",
   "author": "Planetmoondrop planetmoondrop@gmail.com",
   "license": "MIT",

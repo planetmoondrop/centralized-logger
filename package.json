@@ -26,10 +26,14 @@
     "logger"
   ],
   "scripts": {
+    "prepare": "husky",
     "build": "pnpm -r build",
     "dev": "pnpm -r dev"
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.1.0",
+    "@commitlint/config-conventional": "^21.1.0",
+    "husky": "^8.0.3",
     "typescript": "^5.9.3"
   }
 }
