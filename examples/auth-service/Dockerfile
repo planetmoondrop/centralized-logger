@@ -1,75 +1,44 @@
-# ------------------------------------------------------------------------------
-# Stage 1: Base
-# ------------------------------------------------------------------------------
-FROM node:20-alpine AS base
+# ---- Base image ----
+FROM public.ecr.aws/docker/library/node:lts-alpine AS base
 WORKDIR /app
-
 RUN npm install -g pnpm
-RUN npm install -g typescript@5.6
 
-# ------------------------------------------------------------------------------
-# Stage 2: Dependencies
-# ------------------------------------------------------------------------------
+# ---- Dependencies ----
 FROM base AS deps
+# Copy only the pnpm files and package.json for dependency resolution
+COPY examples/auth-service/package.json examples/auth-service/.npmrc* ./
+# Install only production dependencies
+RUN CI=true pnpm install --prod
 
-# Copy workspace files
-COPY pnpm-lock.yaml package.json ./
-RUN printf 'packages:\n  - packages/*\n  - examples/*\n' > pnpm-workspace.yaml
-
-# Copy only package.jsons (better caching)
-COPY packages/nestjs/package.json packages/nestjs/
-COPY examples/auth-service/package.json examples/auth-service/
-
-# Install all deps (with hoisting for TS resolution)
-RUN pnpm install --shamefully-hoist \
-  && pnpm add -Dw typescript@5.6
-
-# ------------------------------------------------------------------------------
-# Stage 3: Builder
-# ------------------------------------------------------------------------------
+# ---- Builder ----
 FROM base AS builder
-
-# Copy everything from deps
-COPY --from=deps /app /app
-
-# Copy source code
-COPY packages/nestjs ./packages/nestjs
-COPY examples/auth-service ./examples/auth-service
-
-# Symlink global tsc into each package that needs it
-RUN ln -sf /usr/local/lib/node_modules/typescript/bin/tsc /app/packages/nestjs/node_modules/.bin/tsc || true
-RUN ln -sf /usr/local/lib/node_modules/typescript/bin/tsc /app/packages/client/node_modules/.bin/tsc || true
-
-# Build all workspace packages
-RUN pnpm -r build
-
-# Prune dev deps
-ENV CI=true
-RUN pnpm prune --prod
-
-# ------------------------------------------------------------------------------
-# Stage 4: Production
-# ------------------------------------------------------------------------------
-FROM node:20-alpine AS prod
 WORKDIR /app
-ENV NODE_ENV=production
+COPY examples/auth-service/ .
+ENV CI=true
+RUN pnpm install
+RUN pnpm run build
 
+# ---- Production ----
+FROM public.ecr.aws/docker/library/node:lts-alpine AS prod
+WORKDIR /app
+ENV NODE=production
+ENV CI=true
+
+# Install openssl for crypto support
 RUN apk add --no-cache openssl
 
-# Non-root user
-RUN addgroup -S nodejs && adduser -S appuser -G nodejs
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && adduser -S appuser -u 1001 -G nodejs
 
-# Copy node_modules + built output
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/examples/auth-service/dist ./dist
+# Copy only necessary files
+COPY --from=deps  /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+# COPY --from=builder /app/.env ./.env
 
-# Copy package.json (optional but good)
-COPY --from=builder /app/examples/auth-service/package.json ./package.json
-COPY --from=builder /app/packages/nestjs ./node_modules/@planetmoondrop/centralized-logger
+RUN chown -R appuser:nodejs /app/node_modules
 
-# Permissions
-RUN chown -R appuser:nodejs /app
 USER appuser
 
 EXPOSE 8080
+
 CMD ["node", "dist/main.js"]

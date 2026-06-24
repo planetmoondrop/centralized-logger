@@ -52,3 +52,7 @@ pnpm build
 pnpm --filter @planetmoondrop/centralized-logger typecheck
 pnpm --filter @planetmoondrop/logger-client exec tsc --noEmit
 ```
+
+## Contributing
+
+Please see our [contributing guide](/CONTRIBUTING.md).

@@ -175,7 +175,8 @@ export class LokiLoggerService implements LoggerService, OnModuleDestroy {
     const opts = this.resolvedOptions;
     const transports: winston.transport[] = [];
 
-    if (opts.consoleOutput || opts.environment === 'development') {
+    // Console is optional: Loki uses its own transport. Same log events go to all transports.
+    if (opts.consoleOutput) {
       transports.push(
         new winston.transports.Console({
           format: opts.jsonConsole

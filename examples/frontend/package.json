@@ -8,11 +8,11 @@
     "start": "next start -p 5173"
   },
   "dependencies": {
+    "@planetmoondrop/logger-client": "1.0.1",
     "next": "16.2.2",
     "react": "^18",
     "react-dom": "^18",
-    "axios": "^1.6.5",
-    "@planetmoondrop/logger-client": "file:../../packages/client"
+    "axios": "^1.6.5"
   },
   "devDependencies": {
     "typescript": "^5",

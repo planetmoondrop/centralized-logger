@@ -1,48 +1,48 @@
-# Build context: repo root (set in docker-compose)
-# This mirrors the original Vite Dockerfile structure exactly.
-
-FROM node:20-alpine AS builder
+# ---- Base image ----
+FROM public.ecr.aws/docker/library/node:lts-alpine AS base
 WORKDIR /app
+RUN npm install -g pnpm
 
-# 1. Build @planetmoondrop/logger-client package
-COPY packages/client/package.json ./packages/client/
-RUN cd packages/client && npm install --ignore-scripts
-COPY packages/client/src         ./packages/client/src
-COPY packages/client/tsconfig.json ./packages/client/
-RUN cd packages/client && npm run build
+# ---- Dependencies ----
+FROM base AS deps
+# Copy only the pnpm files and package.json for dependency resolution
+COPY examples/frontend/package.json examples/frontend/.npmrc* ./
+# Generate lock file and install production dependencies
+RUN CI=true pnpm install --prod --no-frozen-lockfile
 
-# 2. Install frontend deps
-#    npm resolves file:../../packages/client correctly since it's already built above
-COPY examples/frontend/package.json ./examples/frontend/
-RUN cd examples/frontend && npm install --legacy-peer-deps --install-links
-
-# 3. Build Next.js app
-COPY examples/frontend/src         ./examples/frontend/src
-COPY examples/frontend/next.config.js ./examples/frontend/
-COPY examples/frontend/tsconfig.json  ./examples/frontend/
-COPY examples/frontend/tailwind.config.ts ./examples/frontend/
-COPY examples/frontend/postcss.config.js  ./examples/frontend/
-
-ARG NEXT_PUBLIC_API_URL=http://localhost:3003/api
-ARG NEXT_PUBLIC_TRACE_VIEWER=http://localhost:3003/_trace
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_TRACE_VIEWER=$NEXT_PUBLIC_TRACE_VIEWER
-
-RUN cd examples/frontend && npm run build
-
-# 4. Runtime — lean Next.js standalone image
-FROM node:20-alpine AS runner
-RUN addgroup -S app && adduser -S app -G app
+# ---- Builder ----
+FROM base AS builder
 WORKDIR /app
+COPY examples/frontend/ .
+# Install all dependencies including dev
+RUN CI=true pnpm install --no-frozen-lockfile
+RUN pnpm run build
 
+# ---- Production ----
+FROM public.ecr.aws/docker/library/node:lts-alpine AS prod
+WORKDIR /app
 ENV NODE_ENV=production
+ENV CI=true
 
-COPY --from=builder /app/examples/frontend/.next/standalone ./
-COPY --from=builder /app/examples/frontend/.next/static     ./.next/static
-# COPY --from=builder /app/examples/frontend/public           ./public
+# Install openssl for crypto support
+RUN apk add --no-cache openssl
 
-USER app
-EXPOSE 5173
-ENV PORT=5173
-ENV HOSTNAME=0.0.0.0
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && adduser -S appuser -u 1001 -G nodejs
+
+# Copy standalone output
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+
+# Copy package.json for potential debugging (optional)
+COPY --from=builder /app/package.json ./
+
+# Set correct permissions
+RUN chown -R appuser:nodejs /app
+
+USER appuser
+
+EXPOSE 8080
+
+# Next.js standalone server expects to run server.js
 CMD ["node", "server.js"]

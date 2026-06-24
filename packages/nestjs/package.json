@@ -1,6 +1,6 @@
 {
   "name": "@planetmoondrop/centralized-logger",
-  "version": "1.0.0",
+  "version": "0.0.1",
   "description": "Centralized Grafana Loki logging for NestJS microservices with distributed tracing, hierarchy, and zero-config setup.",
   "author": "Planetmoondrop planetmoondrop@gmail.com",
   "license": "MIT",
@@ -13,7 +13,7 @@
     "url": "https://github.com/planet-moondrop/centralized-logger/issues"
   },
   "publishConfig": {
-    "access": "public"
+    "registry": "https://npm.pkg.github.com"
   },
   "keywords": [
     "nestjs",
@@ -54,10 +54,7 @@
     "test:cov": "jest --coverage",
     "test:e2e": "jest --config ./test/jest-e2e.config.ts",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run lint && npm run typecheck && npm run test && npm run build",
-    "release": "standard-version",
-    "release:minor": "standard-version --release-as minor",
-    "release:major": "standard-version --release-as major"
+    "prepublishOnly": "pnpm run build"
   },
   "peerDependencies": {
     "@nestjs/common": "^9.0.0 || ^10.0.0",
@@ -125,7 +122,6 @@
     "resolve-from": "^5.0.0",
     "rxjs": "^7.8.1",
     "shx": "^0.4.0",
-    "standard-version": "^9.5.0",
     "ts-jest": "^29.1.2",
     "tsup": "^8.0.1",
     "typescript": "^5.3.3"
