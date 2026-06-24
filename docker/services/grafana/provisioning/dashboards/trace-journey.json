@@ -1,0 +1,754 @@
+{
+  "title": "Trace Journey Explorer",
+  "uid": "trace-journey",
+  "description": "Full cross-service trace journey. Paste a traceId to see the Tempo waterfall, every service hop, DB queries, outgoing calls, and all logs in chronological order. Optional span filter and service regex narrow the view.",
+  "schemaVersion": 38,
+  "version": 3,
+  "refresh": false,
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": { "hidden": false },
+  "tags": ["nestjs", "loki", "tempo", "trace", "journey", "distributed"],
+  "editable": true,
+
+  "templating": {
+    "list": [
+      {
+        "name": "traceId",
+        "label": "Trace ID",
+        "description": "Paste the x-loki-trace-id (32-char hex) from any API response header, or follow 🔍 Open in Tempo / 📋 Full trace journey from a log line.",
+        "type": "textbox",
+        "current": { "value": "" },
+        "hide": 0
+      },
+      {
+        "name": "spanId",
+        "label": "Span ID filter",
+        "description": "Leave as .* for all spans. Paste a full spanId (16-char hex) to show only logs for that span in the full stream.",
+        "type": "textbox",
+        "current": { "value": ".*" },
+        "hide": 0
+      },
+      {
+        "name": "app",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({app=~\".+\"}, app)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "exclude_metrics",
+        "label": "Exclude /metrics",
+        "type": "custom",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "No : NO, Yes : /metrics",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0,
+        "current": { "selected": true, "text": "No", "value": ".*" },
+        "options": [
+          { "selected": true, "text": "No", "value": ".*" },
+          { "selected": false, "text": "Yes", "value": "/metrics" }
+        ],
+        "hide": 0
+      }
+    ]
+  },
+
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "## Trace Journey Explorer\nReconstruct a single request across **Tempo** (spans) and **Loki** (structured logs).\n\n**Quick start** — Copy **`x-loki-trace-id`** from a response header → paste into **Trace ID** above → press Enter.\n\n| Section | What you get |\n|---------|----------------|\n| **At a glance** | Services touched, log volume, errors/warns, HTTP 4xx/5xx on ingress, DB & outbound calls |\n| **Volume breakdown** | Log lines per service (bar) and per `logType` (pie) |\n| **Log activity** | When this trace produced logs inside the selected time range |\n| **Tempo** | Full span waterfall (requires `initObservability()` / OTEL) |\n| **Loki** | Service hop timeline, full stream, DB / errors / outbound HTTP |\n\n**Tips** — Use the **time picker** (top right) if logs sit outside the default window. **Span ID filter** uses regex (`.*` = all). **Services** accepts a regex on the Loki `app` label."
+      },
+      "transparent": true
+    },
+
+    {
+      "id": 101,
+      "type": "row",
+      "title": "At a glance",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "collapsed": false
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Services touched",
+      "description": "Distinct NestJS services (Loki app label) that emitted at least one log line for this traceId.",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#5794F2" },
+          "unit": "short",
+          "noValue": "—"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count(sum by(app) (count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Log lines",
+      "description": "Total structured log lines for this trace in the dashboard time range.",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "green" },
+          "unit": "short",
+          "noValue": "—"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Errors",
+      "description": "Lines with level=error (includes failed ingress responses and application errors).",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | level = \"error\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 35,
+      "type": "stat",
+      "title": "Warnings",
+      "description": "Lines with level=warn (includes 4xx ingress responses from LokiTraceMiddleware).",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | level = \"warn\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "DB queries",
+      "description": "logType=db (TypeORM / query logger).",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"db\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Outbound HTTP",
+      "description": "logType=http_out (service-to-service calls).",
+      "gridPos": { "h": 4, "w": 4, "x": 20, "y": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "orange" },
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_out\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 36,
+      "type": "stat",
+      "title": "Ingress 4xx",
+      "description": "http_in_res lines with statusCode 4xx (client errors).",
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_in_res\" | statusCode =~ \"4[0-9][0-9]\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 37,
+      "type": "stat",
+      "title": "Ingress 5xx",
+      "description": "http_in_res lines with statusCode 5xx (server errors).",
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "noValue": "0",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_in_res\" | statusCode =~ \"5[0-9][0-9]\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "Unique spans",
+      "description": "Distinct spanId values seen in Loki for this trace (log correlation).",
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "cyan" },
+          "unit": "short",
+          "noValue": "—"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count(sum by(spanId) (count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 38,
+      "type": "stat",
+      "title": "Interceptor logs",
+      "description": "logType=interceptor (handler entry/exit from LokiLoggingInterceptor).",
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#73BF69" },
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"interceptor\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 39,
+      "type": "stat",
+      "title": "Service / app logs",
+      "description": "logType=service (general application logs on the trace).",
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#B877D9" },
+          "unit": "short",
+          "noValue": "0"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"service\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 102,
+      "type": "row",
+      "title": "Volume breakdown",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "collapsed": false
+    },
+
+    {
+      "id": 40,
+      "type": "bargauge",
+      "title": "Log lines by service",
+      "description": "Which services produced the most log lines for this trace.",
+      "gridPos": { "h": 7, "w": 14, "x": 0, "y": 15 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "displayMode": "gradient",
+        "orientation": "horizontal",
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "showUnfilled": true,
+        "minVizWidth": 8,
+        "minVizHeight": 8
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "light-blue", "value": null },
+              { "color": "blue", "value": 1 }
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by(app) (count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
+          "instant": true,
+          "legendFormat": "{{app}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 41,
+      "type": "piechart",
+      "title": "Log lines by type",
+      "description": "Mix of logType values (http_in, db, service, …) for this trace.",
+      "gridPos": { "h": 7, "w": 10, "x": 14, "y": 15 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      },
+      "options": {
+        "pieType": "donut",
+        "tooltip": { "mode": "single", "sort": "desc" },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": ["value", "percent"]
+        },
+        "displayLabels": ["name"]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by(logType) (count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__range]))",
+          "instant": true,
+          "legendFormat": "{{logType}}",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 103,
+      "type": "row",
+      "title": "Distributed trace (Tempo)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+      "collapsed": false
+    },
+
+    {
+      "id": 20,
+      "type": "traces",
+      "title": "Tempo trace waterfall",
+      "description": "Full span tree when traces are exported to Tempo (initObservability / OpenTelemetry). Empty here usually means no trace for this ID in Tempo yet — rely on Loki sections below. Click spans to correlate with logs when traces are linked.",
+      "gridPos": { "h": 22, "w": 24, "x": 0, "y": 23 },
+      "datasource": { "type": "tempo", "uid": "tempo" },
+      "options": {},
+      "targets": [
+        {
+          "datasource": { "type": "tempo", "uid": "tempo" },
+          "queryType": "traceId",
+          "query": "$traceId",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 104,
+      "type": "row",
+      "title": "Request path & timing (Loki)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 45 },
+      "collapsed": false
+    },
+
+    {
+      "id": 30,
+      "type": "logs",
+      "title": "Service hop timeline",
+      "description": "HTTP ingress entry and response (http_in / http_in_res) per service, in time order: method, path, status, duration, spanId.",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 46 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType =~ \"http_in|http_in_res\" | line_format `[{{.service}}]  {{.method}}  {{.path}}  {{.statusCode}}  +{{.duration}}ms  span={{.spanId}}  traceId={{.traceId}}`",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 32,
+      "type": "logs",
+      "title": "Errors",
+      "description": "level=error including stack traces when present.",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 58 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | level = \"error\" | spanId =~ \"$spanId\"",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 105,
+      "type": "row",
+      "title": "Full log stream",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 59 },
+      "collapsed": false
+    },
+
+    {
+      "id": 42,
+      "type": "timeseries",
+      "title": "Log activity in time range",
+      "description": "Count of log lines per step; useful to see when the trace was active relative to the dashboard time window.",
+      "gridPos": { "h": 5, "w": 24, "x": 0, "y": 64 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "min": 0,
+          "custom": {
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "spanNulls": false,
+            "showPoints": "never",
+            "axisPlacement": "auto"
+          }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" [$__interval]))",
+          "legendFormat": "log lines",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 31,
+      "type": "logs",
+      "title": "All log lines (chronological)",
+      "description": "Every line for this trace, ascending by time. Expand rows for JSON fields. Span filter: regex on spanId (default .*). Derived fields in the Loki datasource link traceId/spanId to Tempo and this dashboard.",
+      "gridPos": { "h": 24, "w": 24, "x": 0, "y": 88 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "traceId" },
+            "properties": [
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open in Trace Journey Explorer",
+                    "url": "/d/trace-journey?var-traceId=${__value.raw}",
+                    "targetBlank": true
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | spanId =~ \"$spanId\"",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 106,
+      "type": "row",
+      "title": "Focused views",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 89 },
+      "collapsed": false
+    },
+
+    {
+      "id": 32,
+      "type": "logs",
+      "title": "DB queries",
+      "description": "logType=db — SQL text, duration when available, spanId for correlation.",
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 90 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"db\" | spanId =~ \"$spanId\"",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 34,
+      "type": "logs",
+      "title": "Outbound HTTP calls",
+      "description": "logType=http_out — downstream URL, method, status, duration.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 102 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$services\"} | json | path !~ \"$exclude_metrics\" | traceId = \"$traceId\" | __error__=\"\" | logType = \"http_out\" | spanId =~ \"$spanId\"",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

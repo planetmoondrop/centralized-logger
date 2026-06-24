@@ -1,0 +1,136 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+# ── Schema ────────────────────────────────────────────────────────────────────
+# Two entries: keep v11/boltdb for existing on-disk data, migrate all new
+# ingestion to v13/TSDB.  TSDB uses a columnar inverted index — dramatically
+# faster for high-cardinality JSON field filtering (traceId, userId, email,
+# etc.) compared to the row-scan boltdb-shipper uses.  Loki 2.9+ supports v13.
+schema_config:
+  configs:
+    - from: 2020-10-24
+      store: boltdb-shipper
+      object_store: filesystem
+      schema: v11
+      index:
+        prefix: index_
+        period: 24h
+
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: tsdb_index_
+        period: 24h
+
+# ── Ingester ──────────────────────────────────────────────────────────────────
+ingester:
+  wal:
+    enabled: true
+    dir: /loki/wal
+    flush_on_shutdown: true
+  lifecycler:
+    address: 127.0.0.1
+    ring:
+      kvstore:
+        store: inmemory
+      replication_factor: 1
+    final_sleep: 0s
+  chunk_idle_period: 1h
+  max_chunk_age: 2h
+  # 4 MB chunks — fewer objects on disk, faster range scans
+  chunk_target_size: 4194304
+  chunk_retain_period: 30s
+
+# ── Limits ────────────────────────────────────────────────────────────────────
+limits_config:
+  ingestion_rate_mb: 32
+  ingestion_burst_size_mb: 64
+  # 30-day retention — logs older than this are deleted by the compactor
+  retention_period: 720h
+  # Query window slightly larger than retention so Grafana doesn't clip results
+  max_query_length: 721h
+  max_query_parallelism: 16
+  # Full trace reconstructions can return a lot of lines
+  max_entries_limit_per_query: 10000
+  # Split queries into 24h shards and run in parallel
+  split_queries_by_interval: 24h
+
+# ── Compactor ─────────────────────────────────────────────────────────────────
+compactor:
+  working_directory: /loki/compactor
+  shared_store: filesystem
+  compaction_interval: 10m
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 150
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+storage_config:
+  # Legacy index — needed to serve reads on data ingested before 2024-01-01
+  boltdb_shipper:
+    active_index_directory: /loki/boltdb-shipper-active
+    cache_location: /loki/boltdb-shipper-cache
+    cache_ttl: 24h
+    shared_store: filesystem
+
+  # TSDB index — all new data goes here
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-active
+    cache_location: /loki/tsdb-cache
+    cache_ttl: 24h
+    shared_store: filesystem
+
+  filesystem:
+    directory: /loki/chunks
+
+# ── Query result cache ────────────────────────────────────────────────────────
+# Caches range-query results so repeated trace lookups (dashboard refresh,
+# clicking spans, searching the same traceId multiple times) are served from
+# memory instead of re-scanning chunks on disk.
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 256
+        ttl: 12h
+  align_queries_with_step: true
+  cache_results: true
+
+# ── Frontend ──────────────────────────────────────────────────────────────────
+frontend:
+  compress_responses: true
+  max_outstanding_per_tenant: 512
+
+query_scheduler:
+  max_outstanding_requests_per_tenant: 512
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-temp
+  alertmanager_url: http://localhost:9093
+  ring:
+    kvstore:
+      store: inmemory
+  enable_api: true

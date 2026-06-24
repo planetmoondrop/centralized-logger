@@ -1,0 +1,529 @@
+{
+  "title": "Centralized Logs",
+  "uid": "centralized-logs",
+  "description": "Live HTTP request log stream across all services. Each row shows IP · STATUS · METHOD · PATH · DURATION. Expand any row to see traceId, DB queries, response body, and errors. Click TraceID to open the full journey in Tempo.",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["nestjs", "loki", "logs", "http", "centralized"],
+  "editable": true,
+
+  "templating": {
+    "list": [
+      {
+        "name": "app",
+        "label": "Service",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({app=~\".+\"}, app)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": true,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "env",
+        "label": "Environment",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({app=~\"$app\"}, env)",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": ".+",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "min_duration",
+        "label": "Min Duration (ms)>=",
+        "type": "textbox",
+        "description": "Minimum duration in ms. Use 0 for no filter.",
+        "query": "0",
+        "current": {
+          "selected": true,
+          "text": "0",
+          "value": "0"
+        },
+        "options": [
+          {
+            "selected": true,
+            "text": "0",
+            "value": "0"
+          }
+        ],
+        "hide": 0
+      },
+      {
+        "name": "status_filter",
+        "label": "Status Code",
+        "type": "custom",
+        "query": "All : .*, 2xx : 2[0-9][0-9], 3xx : 3[0-9][0-9], 4xx : 4[0-9][0-9], 5xx : 5[0-9][0-9]",
+        "current": {
+          "text": "All",
+          "value": ".*"
+        },
+        "hide": 0
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "type": "textbox",
+        "description": "Free-text search across all log fields (userId, email, path, error message…)",
+        "current": { "value": "" },
+        "hide": 0
+      },
+      {
+        "name": "exclude_metrics",
+        "label": "Exclude /metrics",
+        "type": "custom",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "No : NO, Yes : /metrics",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0,
+        "current": { "selected": true, "text": "No", "value": ".*" },
+        "options": [
+          { "selected": true, "text": "No", "value": ".*" },
+          { "selected": false, "text": "Yes", "value": "/metrics" }
+        ],
+        "hide": 0
+      }
+    ]
+  },
+
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "### Centralized HTTP Request Logs\nEach row = one HTTP response. **Collapsed**: `IP · STATUS · METHOD · PATH · DURATION`. **Click ▶** to expand and see parsed fields and **Links**: **Open in Tempo** and **Full trace journey** come from the **Loki datasource** (derived fields that match `\"traceId\":\"…\"` on the log line; the captured id is what fills the URL).\n\n**Min Duration (ms)** in the toolbar filters HTTP ingress (`http_in_res`) stats, the request-rate chart, status pie, the main HTTP log stream, and the slow-requests list (0 = show all). Outgoing HTTP (`http_out`) is unchanged: start lines have no duration field."
+      },
+      "transparent": true
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total Requests",
+      "gridPos": { "h": 3, "w": 4, "x": 0, "y": 2 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#5794F2" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode =~ \"$status_filter\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Success Rate",
+      "gridPos": { "h": 3, "w": 4, "x": 4, "y": 2 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.95 },
+              { "color": "green", "value": 0.99 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode < 400 [$__range])) / sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "4xx Client Errors",
+      "gridPos": { "h": 3, "w": 4, "x": 12, "y": 2 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "orange" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode >= 400 | statusCode < 500 [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "5xx Errors",
+      "gridPos": { "h": 3, "w": 4, "x": 8, "y": 2 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode >= 500 [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Active Services",
+      "gridPos": { "h": 3, "w": 4, "x": 16, "y": 2 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "purple" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count(sum by(app) (count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration [$__range])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 7,
+      "type": "stat",
+      "title": "DB Queries",
+      "gridPos": { "h": 3, "w": 4, "x": 20, "y": 2 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "fixed", "fixedColor": "#73BF69" },
+          "unit": "short"
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"db\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Request Volume — Rate per service",
+      "gridPos": { "h": 7, "w": 16, "x": 0, "y": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "min": 0,
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 2, "fillOpacity": 12, "gradientMode": "opacity" }
+        }
+      },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "desc" },
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "calcs": ["mean", "max", "lastNotNull"]
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by(app) (rate({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration [$__interval]))",
+          "legendFormat": "{{app}}",
+          "refId": "A"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum by(app) (rate({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode >= 500 [$__interval]))",
+          "legendFormat": "{{app}} 5xx",
+          "refId": "B"
+        }
+      ]
+    },
+
+    {
+      "id": 11,
+      "type": "piechart",
+      "title": "Status Code Distribution",
+      "gridPos": { "h": 7, "w": 8, "x": 16, "y": 5 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "pieType": "donut",
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "table", "placement": "right", "values": ["percent"] }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "2xx" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "3xx" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "blue", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "4xx" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "5xx" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode >= 200 | statusCode < 300 [$__range]))",
+          "legendFormat": "2xx",
+          "instant": true,
+          "refId": "2xx"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode >= 300 | statusCode < 400 [$__range]))",
+          "legendFormat": "3xx",
+          "instant": true,
+          "refId": "3xx"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode >= 400 | statusCode < 500 [$__range]))",
+          "legendFormat": "4xx",
+          "instant": true,
+          "refId": "4xx"
+        },
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode >= 500 [$__range]))",
+          "legendFormat": "5xx",
+          "instant": true,
+          "refId": "5xx"
+        }
+      ]
+    },
+
+    {
+      "id": 20,
+      "type": "logs",
+      "title": "HTTP Request Log — Collapsed: IP · STATUS · METHOD · PATH · DURATION  |  Expand ▶ to see full trace details",
+      "description": "Each row is one HTTP response. Collapsed view shows: IP address, HTTP status code, method, route path, and response duration. Expand any row to reveal the traceId (→ Tempo), spanId, DB queries, response body, error stack traces, and all other request metadata. Use the 🔍 TraceID link to open the full distributed trace waterfall in Tempo.",
+      "gridPos": { "h": 30, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": false,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= $min_duration | statusCode =~ \"$status_filter\" |~ \"$search\" | line_format `{{.ip | default \"unknown\"}}  [{{.statusCode}}]  {{.method}}  {{.path}}  +{{.duration}}ms  svc={{.service}}  \"traceId\":\"{{.traceId}}\"`",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 30,
+      "type": "logs",
+      "title": "Errors — All services",
+      "description": "Every log line with level=error, across all services. Click TraceID to jump to the full trace journey. DB query errors and uncaught exceptions appear here.",
+      "gridPos": { "h": 14, "w": 24, "x": 0, "y": 42 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | statusCode =~ \"$status_filter\" | level = \"error\" |~ \"$search\"",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 31,
+      "type": "logs",
+      "title": "Slow Requests +600ms default (filtered by Min Duration)",
+      "description": "HTTP responses slower than the Min Duration filter. Set Min Duration (ms) in the toolbar above to narrow the list. Expand a row to see DB queries and full trace.",
+      "gridPos": { "h": 12, "w": 12, "x": 0, "y": 56 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": false,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | duration >= 600 | duration >= $min_duration | statusCode =~ \"$status_filter\" | line_format `+{{.duration}}ms  [{{.statusCode}}]  {{.method}}  {{.path}}  svc={{.service}}  \"traceId\":\"{{.traceId}}\"`",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 32,
+      "type": "logs",
+      "title": "Database Queries",
+      "description": "All DB queries across all services — TypeORM / custom db logType. Includes query text, duration, and traceId for correlation.",
+      "gridPos": { "h": 12, "w": 12, "x": 12, "y": 56 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": false,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | logType = \"db\" |~ \"$search\"",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 40,
+      "type": "logs",
+      "title": "Outgoing HTTP Calls  (service-to-service)",
+      "description": "All http_out log entries — calls your services make to downstream APIs. Includes URL, method, status code, and duration.",
+      "gridPos": { "h": 10, "w": 24, "x": 0, "y": 68 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{app=~\"$app\",env=~\"$env\"} | json | path !~ \"$exclude_metrics\" | statusCode =~ \"$status_filter\" | logType = \"http_out\" |~ \"$search\"",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

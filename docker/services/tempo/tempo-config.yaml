@@ -1,0 +1,58 @@
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+  log_level: warn
+
+# ── Distributor ───────────────────────────────────────────────────────────────
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+# ── Ingester ──────────────────────────────────────────────────────────────────
+ingester:
+  # Flush blocks every 30m so recent traces appear in search quickly
+  max_block_duration: 30m
+  trace_idle_period: 30s
+  flush_check_period: 10s
+
+# ── Compactor ─────────────────────────────────────────────────────────────────
+compactor:
+  compaction:
+    # Merge small blocks every hour to keep query performance high
+    compaction_window: 1h
+    max_compaction_objects: 6000000
+    block_retention: 720h    # 30 days — matches Loki retention window
+    compacted_block_retention: 1h
+  ring:
+    kvstore:
+      store: memberlist
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /tmp/tempo/wal
+    local:
+      path: /tmp/tempo/blocks
+    pool:
+      max_workers: 100
+      queue_depth: 10000
+
+# ── Overrides ─────────────────────────────────────────────────────────────────
+# Search is enabled by default in Tempo 2.x for the local backend — no explicit
+# block needed. max_search_duration is configured per-tenant under overrides.
+overrides:
+  defaults:
+    ingestion:
+      max_traces_per_user: 100000
+    global:
+      max_bytes_per_trace: 10000000
+    compaction:
+      block_retention: 720h   # 30 days

@@ -1,0 +1,285 @@
+{
+  "title": "Z-Archive Log Viewer",
+  "uid": "archive-logs",
+  "description": "Query re-ingested archive logs. Run `planetmoondrop-archive-import --file <archive.jsonl.gz>` first, then select the date and window to explore logs that have been rotated out of the 30-day hot window.",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": false,
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "tags": ["nestjs", "loki", "archive", "planetmoondrop"],
+  "editable": true,
+
+  "templating": {
+    "list": [
+      {
+        "name": "archive_date",
+        "label": "Archive Date",
+        "description": "Date of the archive window (YYYY-MM-DD). Must match a file imported with planetmoondrop-archive-import.",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({archive=\"true\"}, archive_date)",
+        "refresh": 2,
+        "sort": 3,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "archive_window",
+        "label": "Window",
+        "description": "am = 00:00–12:00 UTC,  pm = 12:00–24:00 UTC",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({archive=\"true\"}, archive_window)",
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "app",
+        "label": "Service",
+        "description": "Filter by service name",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({archive=\"true\"}, app)",
+        "refresh": 2,
+        "sort": 1,
+        "includeAll": true,
+        "allValue": ".+",
+        "current": {},
+        "hide": 0
+      },
+      {
+        "name": "search",
+        "label": "Search",
+        "description": "Free-text filter applied to log line content",
+        "type": "textbox",
+        "current": { "value": "" },
+        "hide": 0
+      },
+      {
+        "name": "exclude_metrics",
+        "label": "Exclude /metrics",
+        "type": "custom",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "No : NO, Yes : /metrics",
+        "refresh": 2,
+        "includeAll": false,
+        "multi": false,
+        "sort": 0,
+        "description": "Yes = hide /metrics scrapes. No = do not filter by path (uses path !~ '^$' so all real paths pass).",
+        "current": { "selected": true, "text": "Yes", "value": "/metrics" },
+        "options": [
+          { "selected": false, "text": "No", "value": "^$" },
+          { "selected": true, "text": "Yes", "value": "/metrics" }
+        ],
+        "hide": 0
+      }
+    ]
+  },
+
+  "panels": [
+    {
+      "id": 1,
+      "type": "text",
+      "title": "",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "options": {
+        "mode": "markdown",
+        "content": "## How to load an archive\n1. Make sure the `archive-exporter` service has run at least once (check `docker/archive/logs/` for `.jsonl.gz` files).\n2. From your project root, run:\n   ```\n   node docker/archive-exporter/import.mjs \\\n     --file ./docker/archive/logs/YYYY-MM-DD-am.jsonl.gz\n   ```\n   Import sorts timestamps per stream so Loki accepts the push. If a **previous** import partially failed, Loki may still reject older lines for that stream — clear Loki data for that tenant or use a fresh volume, then re-import.\n3. Set the dashboard **time range** to include the archive day (default is last 90 days). Pick **Archive Date**, **Window**, and **Service** above.\n4. **Exclude /metrics** = Yes (default) unless you need scrapes.\n\n> Labels: `archive=\"true\"`, `archive_date`, `archive_window`, plus original `app` / `env`."
+      },
+      "transparent": true
+    },
+
+    {
+      "id": 10,
+      "type": "stat",
+      "title": "Archived Log Lines",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "#5794F2" }, "unit": "short" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 11,
+      "type": "stat",
+      "title": "Services in Archive",
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "unit": "short" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "count(sum by(app) (count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\"} | json | path !~ \"$exclude_metrics\" [$__range])))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Errors in Archive",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | level = \"error\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "HTTP Requests Archived",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 4 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "reduceOptions": { "calcs": ["sum"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "value"
+      },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "unit": "short" }
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" [$__range]))",
+          "instant": true,
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 20,
+      "type": "logs",
+      "title": "Archive Log Stream",
+      "description": "All archived log lines matching your filters. Use the Search box for free-text filtering. Expand any row for full JSON details including requestBody, responseBody, traceId, spanId, db queries, etc.",
+      "gridPos": { "h": 28, "w": 24, "x": 0, "y": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": false,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" |~ \"$search\"",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 30,
+      "type": "logs",
+      "title": "Errors Only",
+      "description": "All error-level log lines in the selected archive window.",
+      "gridPos": { "h": 14, "w": 12, "x": 0, "y": 36 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | level = \"error\"",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "id": 31,
+      "type": "logs",
+      "title": "HTTP Requests",
+      "description": "Completed HTTP request log lines (logType = http_in_res). Includes status code, duration, requestBody, responseBody.",
+      "gridPos": { "h": 14, "w": 12, "x": 12, "y": 36 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "wrapLogMessage": false,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "sortOrder": "Ascending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" | line_format `[{{.app}}]  {{.method}}  {{.path}}  [{{.statusCode}}]  +{{.duration}}ms  \"traceId\":\"{{.traceId}}\"`",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

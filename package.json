@@ -1,0 +1,40 @@
+{
+  "name": "centralized-logger",
+  "private": true,
+  "version": "0.0.1",
+  "homepage": "https://github.com/planet-moondrop/centralized-logger#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/planet-moondrop/centralized-logger.git"
+  },
+  "bugs": {
+    "url": "https://github.com/planet-moondrop/centralized-logger/issues"
+  },
+  "keywords": [
+    "nestjs",
+    "loki",
+    "grafana",
+    "logging",
+    "distributed-tracing",
+    "microservices",
+    "observability",
+    "winston",
+    "promtail",
+    "trace-id",
+    "centralized-logger",
+    "centralized",
+    "logger"
+  ],
+  "scripts": {
+    "prepare": "husky",
+    "build": "pnpm -r build",
+    "dev": "pnpm -r dev"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.31.0",
+    "@commitlint/cli": "^21.1.0",
+    "@commitlint/config-conventional": "^21.1.0",
+    "husky": "^8.0.3",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "@planetmoondrop/logger-client",
+  "version": "1.0.0",
+  "description": "Axios interceptor to manage x-loki-trace-id header",
+  "author": "Planetmoondrop planetmoondrop@gmail.com",
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "axios",
+    "interceptor",
+    "trace",
+    "trace-id",
+    "traceId",
+    "x-loki-trace-id",
+    "planetmoondrop interceptor",
+    "axios interceptor",
+    "planetmoondrop",
+    "logger-client",
+    "logger",
+    "observability",
+    "distributed-tracing",
+    "microservices",
+    "nestjs",
+    "client-logger",
+    "logger-client",
+    "logger-client-axios",
+    "logger-client-axios-interceptor",
+    "logger-client-axios-interceptor-loki"
+  ],
+  "peerDependencies": {
+    "axios": ">=0.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "axios": "^1.6.0",
+    "typescript": "^5.0.0"
+  }
+}
