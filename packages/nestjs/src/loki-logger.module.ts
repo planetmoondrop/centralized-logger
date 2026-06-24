@@ -16,6 +16,7 @@ import { LokiLoggerService } from './core/loki-logger.service';
 import { TraceViewerService } from './viewer/trace-viewer.service';
 import { MetricsService } from './metrics/metrics.service';
 import { traceStorage } from './core/trace-context';
+import { filterUserStackTrace } from './core/stack-trace-filter';
 import { getActiveOtelContext } from './otel/init';
 
 type Req = import('express').Request;
@@ -211,7 +212,7 @@ export class LokiLoggerModule {
           if (Object.keys(req.query).length) inMeta.query = req.query;
           if (opts.logRequestBody && (req as any).body) inMeta.body = (req as any).body;
 
-          logger.logWithType('info', `→ ${req.method} ${req.path}`, 'http_in', 'HTTP', inMeta);
+          // logger.logWithType('info', `→ ${req.method} ${req.path}`, 'http_in', 'HTTP', inMeta);
 
           res.on('finish', () => {
             const duration = Date.now() - startTime;
@@ -228,9 +229,9 @@ export class LokiLoggerModule {
             }
 
             const msg = `← ${req.method} ${req.path} ${status} +${duration}ms`;
-            if (status >= 500) logger.logWithType('error', msg, 'http_in_res', 'HTTP', outMeta);
-            else if (status >= 400) logger.logWithType('warn', msg, 'http_in_res', 'HTTP', outMeta);
-            else logger.logWithType('info', msg, 'http_in_res', 'HTTP', outMeta);
+            if (status >= 500) logger.logWithType('error', msg, 'http_in_res', 'HTTP', inMeta);
+            else if (status >= 400) logger.logWithType('warn', msg, 'http_in_res', 'HTTP', inMeta);
+            else logger.logWithType('info', msg, 'http_in_res', 'HTTP', inMeta);
           });
 
           next();
@@ -268,7 +269,12 @@ export class LokiLoggerModule {
               `Error ${name} +${duration}ms — ${err?.message}`,
               'interceptor',
               'Interceptor',
-              { traceId: trace?.traceId, spanId: trace?.spanId, duration, stack: err?.stack },
+              {
+                traceId: trace?.traceId,
+                spanId: trace?.spanId,
+                duration,
+                stack: filterUserStackTrace(err?.stack),
+              },
             );
             return throwError(() => err);
           }),

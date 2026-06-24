@@ -1,4 +1,5 @@
 import { LokiLoggerService } from './loki-logger.service';
+import { filterUserStackTrace } from './stack-trace-filter';
 
 const CONTEXT = 'TypeORM';
 const SLOW_QUERY_THRESHOLD_MS = 1_000;
@@ -95,7 +96,7 @@ export class TypeOrmLokiLogger implements TypeOrmLoggerContract {
   ): void {
     this.logger.logWithType('error', 'DB query error', 'db', CONTEXT, {
       error: error instanceof Error ? error.message : error,
-      stack: error instanceof Error ? error.stack : undefined,
+      stack: error instanceof Error ? filterUserStackTrace(error.stack) : undefined,
       query: this.truncate(query),
       parameters: this.sanitize(parameters),
     });

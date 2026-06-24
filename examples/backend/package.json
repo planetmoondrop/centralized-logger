@@ -8,7 +8,7 @@
     "dev": "nodemon --watch src --ext ts --exec ts-node src/main.ts"
   },
   "dependencies": {
-    "@planetmoondrop/centralized-logger": "file:../../packages/nestjs",
+    "@planetmoondrop/centralized-logger": "1.0.0",
     "@nestjs/axios": "^3.0.2",
     "@nestjs/common": "^10.3.0",
     "@nestjs/core": "^10.3.0",

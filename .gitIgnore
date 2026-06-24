@@ -12,6 +12,7 @@ logs
 *.log
 npm-debug.log*
 pnpm-debug.log*
+.npmrc
 
 # env
 .env

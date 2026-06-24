@@ -1,4 +1,5 @@
 import { getLogger } from '../core/logger-ref';
+import { filterUserStackTrace } from '../core/stack-trace-filter';
 
 export interface LogDecoratorOptions {
   /**
@@ -15,7 +16,10 @@ export interface LogDecoratorOptions {
 
   /**
    * Log level for entry/exit messages.
-   * @default 'debug'
+   * Defaults to `'info'` so lines are emitted when `LokiLoggerOptions.logLevel`
+   * is the module default (`'info'`). Use `'debug'` for verbose tracing only.
+   *
+   * @default 'info'
    */
   level?: 'debug' | 'info' | 'warn';
 
@@ -49,13 +53,13 @@ export interface LogDecoratorOptions {
  * async findUser(id: string): Promise<User> { ... }
  *
  * @example
- * @Log({ args: true, level: 'info', tags: { flow: 'checkout' } })
+ * @Log({ args: true, tags: { flow: 'checkout' } })
  * async createOrder(dto: CreateOrderDto): Promise<Order> { ... }
  */
 export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
   return (_target: object, propertyKey: string | symbol, descriptor: PropertyDescriptor) => {
     const originalMethod = descriptor.value as (...args: unknown[]) => unknown;
-    const level = options.level ?? 'debug';
+    const level = options.level ?? 'info';
     const isAsync = originalMethod.constructor.name === 'AsyncFunction';
 
     const wrapped = function (this: unknown, ...args: unknown[]) {
@@ -94,7 +98,7 @@ export function Log(options: LogDecoratorOptions = {}): MethodDecorator {
         logger.logWithType('error', `✕ ${method} +${duration}ms — ${message}`, 'service', className, {
           ...staticTags,
           duration,
-          stack: err instanceof Error ? err.stack : undefined,
+          stack: err instanceof Error ? filterUserStackTrace(err.stack) : undefined,
         });
       };
 

@@ -72,10 +72,11 @@
         "includeAll": false,
         "multi": false,
         "sort": 0,
-        "current": { "selected": true, "text": "No", "value": ".*" },
+        "description": "Yes = hide /metrics scrapes. No = do not filter by path (uses path !~ '^$' so all real paths pass).",
+        "current": { "selected": true, "text": "Yes", "value": "/metrics" },
         "options": [
-          { "selected": true, "text": "No", "value": ".*" },
-          { "selected": false, "text": "Yes", "value": "/metrics" }
+          { "selected": false, "text": "No", "value": "^$" },
+          { "selected": true, "text": "Yes", "value": "/metrics" }
         ],
         "hide": 0
       }
@@ -90,7 +91,7 @@
       "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
       "options": {
         "mode": "markdown",
-        "content": "## How to load an archive\n1. Make sure the `archive-exporter` service has run at least once (check `docker/archive/logs/` for `.jsonl.gz` files).\n2. From your project root, run:\n   ```\n   node docker/archive-exporter/import.mjs \\\n     --file ./docker/archive/logs/YYYY-MM-DD-am.jsonl.gz\n   ```\n3. Select the **Archive Date**, **Window**, and **Service** filters above, then view the logs in the panels below.\n\n> Labels pushed: `archive=\"true\"`, `archive_date`, `archive_window`, plus the original service labels."
+        "content": "## How to load an archive\n1. Make sure the `archive-exporter` service has run at least once (check `docker/archive/logs/` for `.jsonl.gz` files).\n2. From your project root, run:\n   ```\n   node docker/archive-exporter/import.mjs \\\n     --file ./docker/archive/logs/YYYY-MM-DD-am.jsonl.gz\n   ```\n   Import sorts timestamps per stream so Loki accepts the push. If a **previous** import partially failed, Loki may still reject older lines for that stream — clear Loki data for that tenant or use a fresh volume, then re-import.\n3. Set the dashboard **time range** to include the archive day (default is last 90 days). Pick **Archive Date**, **Window**, and **Service** above.\n4. **Exclude /metrics** = Yes (default) unless you need scrapes.\n\n> Labels: `archive=\"true\"`, `archive_date`, `archive_window`, plus original `app` / `env`."
       },
       "transparent": true
     },
@@ -113,7 +114,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" [7d]))",
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -138,7 +139,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "count(sum by(app) (count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\"} | json | path !~ \"$exclude_metrics\" [7d])))",
+          "expr": "count(sum by(app) (count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\"} | json | path !~ \"$exclude_metrics\" [$__range])))",
           "instant": true,
           "refId": "A"
         }
@@ -173,7 +174,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | level = \"error\" [7d]))",
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | level = \"error\" [$__range]))",
           "instant": true,
           "refId": "A"
         }
@@ -198,7 +199,7 @@
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" [7d]))",
+          "expr": "sum(count_over_time({archive=\"true\", archive_date=~\"$archive_date\", archive_window=~\"$archive_window\", app=~\"$app\"} | json | path !~ \"$exclude_metrics\" | logType = \"http_in_res\" [$__range]))",
           "instant": true,
           "refId": "A"
         }

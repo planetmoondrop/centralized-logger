@@ -106,7 +106,7 @@
       "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
       "options": {
         "mode": "markdown",
-        "content": "### Centralized HTTP Request Logs\nEach row = one HTTP response. **Collapsed**: `IP · STATUS · METHOD · PATH · DURATION`. **Click ▶** to expand and see traceId, spanId, DB queries, responseBody, errors and every log line. **Click `🔍 Open in Tempo`** on any TraceID to see the distributed trace waterfall.\n\n**Min Duration (ms)** in the toolbar filters HTTP ingress (`http_in_res`) stats, the request-rate chart, status pie, the main HTTP log stream, and the slow-requests list (0 = show all). Outgoing HTTP (`http_out`) is unchanged: start lines have no duration field."
+        "content": "### Centralized HTTP Request Logs\nEach row = one HTTP response. **Collapsed**: `IP · STATUS · METHOD · PATH · DURATION`. **Click ▶** to expand and see parsed fields and **Links**: **Open in Tempo** and **Full trace journey** come from the **Loki datasource** (derived fields that match `\"traceId\":\"…\"` on the log line; the captured id is what fills the URL).\n\n**Min Duration (ms)** in the toolbar filters HTTP ingress (`http_in_res`) stats, the request-rate chart, status pie, the main HTTP log stream, and the slow-requests list (0 = show all). Outgoing HTTP (`http_out`) is unchanged: start lines have no duration field."
       },
       "transparent": true
     },
